@@ -35,6 +35,7 @@ class RegisterUser(APIView):
             self.send_otp(data['email'], otp) 
 
             registration_data = {
+                'name': data['name'],
                 'email': data['email'],
                 'password': data['password'],
                 'otp': otp  # Save OTP with registration data
@@ -63,15 +64,14 @@ class VerifyOTP(APIView):
         print(otp)
         registration_data = request.data['registered_data']
         print(registration_data)
-        # Retrieve registration data from session or temporary storage
+
         if  not registration_data:
             return Response({'error': 'No registration data found.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check if OTP matches
         if int(otp) == registration_data['otp']:
             print('2')
-            # Create the user now after OTP verification
             user = CustomUser.objects.create_user(
+                name=registration_data['name'],
                 email=registration_data['email'],
                 password=registration_data['password'],
             )
@@ -98,38 +98,64 @@ class LoginView(APIView):
         print('user heii')
 
         if user is None:
-            # Email error: User not found
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         if not user.check_password(password):
-            # Password error: Incorrect password
             return Response({"error": "Incorrect password"}, status=status.HTTP_401_UNAUTHORIZED)
 
         print('password correct')
         
-        login(request, user)
-        print('user logged in')
-
         refresh = RefreshToken.for_user(user)
         print(refresh)
         refresh['email'] = str(user.email)
-        user_profile = CustomUser.objects.get(email=request.user)
+        user_profile = CustomUser.objects.get(email=email)
         serializer = UserSerializer(user_profile)
 
         content = {
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'isAuthenticated':user.is_active,
-            'isSuperAdmin': user.is_superuser,
             "data":serializer.data
         }
         print('content')
         return Response(content, status=status.HTTP_200_OK)
 
 
-class GoogleLogin(APIView):
-    permission_classes = permissions.AllowAny
+class GoogleLoginView(APIView):
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        print("user/google-login")
+        try:
+            email = request.data['email']
+            name = request.data['name']
+            print(email,name)
+        except KeyError:
+            return Response({"error": "Not sufficient data"})
+        
+        user = CustomUser.objects.filter(email = email).first()
+        print('uauau',user)
+        if user is None:
+            user = CustomUser.objects.create_user(
+                name=name,
+                email=email,
+                password=''
+            )
+            print('new user by googleLogin',user)
+
+        refresh = RefreshToken.for_user(user)
+        print(refresh)
+        refresh['email'] = str(user.email)
+        user_profile = CustomUser.objects.get(email=email)
+        serializer = UserSerializer(user_profile)
+
+        content = {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'isAuthenticated':user.is_active,
+            "data":serializer.data
+        }
+        print('content',content)
+        return Response(content, status=status.HTTP_200_OK)
         
 
         
