@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',  # Optional, for token blacklisting
     
     'user',
+    'authentication'
 
 ]
 
@@ -234,7 +235,7 @@ USE_I18N = True
 
 USE_TZ = True
 
-AUTH_USER_MODEL = 'user.CustomUser'
+AUTH_USER_MODEL = 'authentication.CustomUser'
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/

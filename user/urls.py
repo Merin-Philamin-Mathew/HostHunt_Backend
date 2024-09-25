@@ -7,5 +7,5 @@ urlpatterns = [
     path('otp-verification', VerifyOTP.as_view(),name='verify'),
     path('login/', LoginView.as_view(),name='login'),
     path('google-login/', GoogleLoginView.as_view(),name='google-login'),
-
+    
 ]
