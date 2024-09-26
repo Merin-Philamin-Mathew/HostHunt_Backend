@@ -2,7 +2,7 @@ from django.shortcuts import render
 from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken 
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomOwner, CustomUser
 from .seriallizers import OwnerSerializer, UserSerializer
@@ -27,6 +27,7 @@ class RegisterUser(APIView):
             model = CustomUser
             serializer = UserSerializer(data=data)
 
+        print(model,serializer)
         if model.objects.filter(email=data.get('email')).exists():
             return Response({'email': 'This email already exists.'})
 
@@ -75,16 +76,23 @@ class VerifyOTP(APIView):
         
         if int(otp) == registration_data['otp']:
             print('2')
-            if user_type == 'property_owner':
-                model = CustomOwner
-            else:
+            if user_type == 'user':
+                print('ksdfhnsdkl')
                 model = CustomUser
+            else:
+                print("dfsdfsdfdsfsdfd///////////")
+                model = CustomOwner
+
+        
 
             user = model.objects.create_user(
                 name=registration_data['name'],
                 email=registration_data['email'],
                 password=registration_data['password'],
+                model = model
             )
+
+            print(model,'.......................................')
 
             return Response({'message': 'User created successfully.'}, status=status.HTTP_201_CREATED)
         else:
@@ -100,12 +108,18 @@ class LoginView(APIView):
         try:
             email = request.data['email']
             password = request.data['password']
-            print(email,password)
+            user_type = request.data['user_type']
+            print(email,password, user_type)
         except KeyError:
             return Response({"error": "Not sufficient data"})
         print('received datas')
-        user = CustomOwner.objects.filter(email = email).first()
-        print('user heii')
+        if user_type == 'user':
+            model, serializer = CustomUser, UserSerializer
+        else:
+            model, serializer = CustomOwner, OwnerSerializer
+
+        user = model.objects.filter(email = email).first()
+        print('user heii',user)
 
         if user is None:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -117,15 +131,15 @@ class LoginView(APIView):
         refresh = RefreshToken.for_user(user)
         print(refresh)
         refresh['email'] = str(user.email)
-        user_profile = CustomOwner.objects.get(email=email)
-        serializer = OwnerSerializer(user_profile)
+        user_profile = model.objects.get(email=email)
+        serializer = serializer(user_profile)
 
         content = {
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-            'isAuthenticated':user.is_active,
+            # 'isAuthenticated':user.is_active,
             "data":serializer.data
         }
-        print('content')
+        print('content',content)
         return Response(content, status=status.HTTP_200_OK)
 
