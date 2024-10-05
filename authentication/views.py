@@ -27,7 +27,7 @@ class RegisterUser(APIView):
             model = CustomUser
             serializer = UserSerializer(data=data)
 
-        print(model,serializer)
+        print(model,serializer,"..........................")
         if model.objects.filter(email=data.get('email')).exists():
             return Response({'email': 'This email already exists.'})
 
@@ -41,8 +41,11 @@ class RegisterUser(APIView):
                 'name': data['name'],
                 'email': data['email'],
                 'password': data['password'],
-                'otp': otp  # Save OTP with registration data
             }
+
+            request.session['otp'] = otp
+            getotp = request.session.get('otp')
+            print(getotp)
 
             return Response({'message': 'OTP sent to your email.','data':registration_data,}, status=status.HTTP_200_OK)
         else:
@@ -64,6 +67,7 @@ class VerifyOTP(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
+        print("jjjjjjjjjjjjjjj",request.headers)
         print('authentication/otp')
         otp = request.data.get('otp')
         user_type = request.data.get('user_type')
@@ -71,10 +75,15 @@ class VerifyOTP(APIView):
         registration_data = request.data['registered_data']
         print('registration_data',registration_data)
 
+
+        getotp = request.session.get('otp')
+        print('/verifyOtp getotp', getotp)
+
+    
         if  not registration_data:
             return Response({'error': 'No registration data found.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        if int(otp) == registration_data['otp']:
+        if getotp == int(otp):
             print('2')
             if user_type == 'user':
                 print('ksdfhnsdkl')
@@ -89,7 +98,6 @@ class VerifyOTP(APIView):
                 name=registration_data['name'],
                 email=registration_data['email'],
                 password=registration_data['password'],
-                model = model
             )
 
             print(model,'.......................................')
@@ -128,7 +136,17 @@ class LoginView(APIView):
 
         print('password correct')
         
-        refresh = RefreshToken.for_user(user)
+          # Handle RefreshToken generation based on user type
+        if isinstance(user, CustomUser):
+            refresh = RefreshToken.for_user(user)
+            refresh['role'] = 'user'
+        else:
+            # Manually create a token for CustomOwner
+            refresh = RefreshToken()
+            refresh['role'] = 'owner'
+            refresh['email'] = str(user.email)
+            # Add custom owner-related fields if needed
+            
         print(refresh)
         refresh['email'] = str(user.email)
         user_profile = model.objects.get(email=email)
@@ -142,4 +160,43 @@ class LoginView(APIView):
         }
         print('content',content)
         return Response(content, status=status.HTTP_200_OK)
+    
+
+class GoogleLoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        print("user/google-login")
+        try:
+            email = request.data['email']
+            name = request.data['name']
+            print(email,name)
+        except KeyError:
+            return Response({"error": "Not sufficient data"})
+        
+        user = CustomUser.objects.filter(email = email).first()
+        print('uauau',user)
+        if user is None:
+            user = CustomUser.objects.create_user(
+                name=name,
+                email=email,
+                password=''
+            )
+            print('new user by googleLogin',user)
+
+        refresh = RefreshToken.for_user(user)
+        print(refresh)
+        refresh['email'] = str(user.email)
+        user_profile = CustomUser.objects.get(email=email)
+        serializer = UserSerializer(user_profile)
+
+        content = {
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'isAuthenticated':user.is_active,
+            "data":serializer.data
+        }
+        print('content',content)
+        return Response(content, status=status.HTTP_200_OK)
+        
 

@@ -37,11 +37,11 @@ ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'your-production-domain.com']
 
 SESSION_COOKIE_AGE = 3600  # 1 hour (in seconds)
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
-SESSION_COOKIE_DOMAIN = 'localhost'
+# SESSION_COOKIE_DOMAIN = 'localhost'
+# SESSION_COOKIE_DOMAIN = 'your-production-domain.com'
 
 
 # Application definition
-
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -54,8 +54,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',  # Optional, for token blacklisting
     
-    'user',
-    'authentication'
+    'authentication',
+    'property'
 
 ]
 
