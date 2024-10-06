@@ -70,6 +70,10 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+AUTHENTICATION_BACKENDS = [
+    'authentication.authenticate.CustomOwnerBackend', # for CustomOwner Table
+    'django.contrib.auth.backends.ModelBackend',  # Default backend for CustomUser
+]
 
 
 # put on your settings.py file below INSTALLED_APPS

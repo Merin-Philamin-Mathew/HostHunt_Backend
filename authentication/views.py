@@ -12,6 +12,23 @@ from django.conf import settings
 from django.core.mail import send_mail
 
 # Create your views here.
+    
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+class CustomOwnerTokenView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        owner = CustomOwner.objects.filter(email=request.data['email']).first()
+        if owner and owner.check_password(request.data['password']):
+            # Issue token for owner
+            return super().post(request, *args, **kwargs)
+        return Response({'error': 'Invalid credentials'}, status=401)
+
+class CustomOwnerRefreshToken(RefreshToken):
+    @classmethod
+    def for_owner(cls, owner):
+        token = cls()
+        return token
+     
 class RegisterUser(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -121,10 +138,11 @@ class LoginView(APIView):
         except KeyError:
             return Response({"error": "Not sufficient data"})
         print('received datas')
+        
         if user_type == 'user':
-            model, serializer = CustomUser, UserSerializer
+            model, serializer, role = CustomUser, UserSerializer, 'user'
         else:
-            model, serializer = CustomOwner, OwnerSerializer
+            model, serializer, role = CustomOwner, OwnerSerializer, 'owner'
 
         user = model.objects.filter(email = email).first()
         print('user heii',user)
@@ -136,30 +154,30 @@ class LoginView(APIView):
 
         print('password correct')
         
-          # Handle RefreshToken generation based on user type
-        if isinstance(user, CustomUser):
+        if user_type == 'user':
             refresh = RefreshToken.for_user(user)
-            refresh['role'] = 'user'
+            print('user_type == user') 
         else:
-            # Manually create a token for CustomOwner
-            refresh = RefreshToken()
-            refresh['role'] = 'owner'
-            refresh['email'] = str(user.email)
-            # Add custom owner-related fields if needed
-            
-        print(refresh)
+            refresh = CustomOwnerRefreshToken.for_owner(user)
+            print('user_type = owner')
+
+        refresh['role'] = role
         refresh['email'] = str(user.email)
-        user_profile = model.objects.get(email=email)
-        serializer = serializer(user_profile)
+        refresh['id'] = str(user.id)
+        serializer = serializer(user)
 
         content = {
             'refresh': str(refresh),
             'access': str(refresh.access_token),
-            # 'isAuthenticated':user.is_active,
             "data":serializer.data
         }
         print('content',content)
         return Response(content, status=status.HTTP_200_OK)
+    
+class ForgotPassword(APIView):
+    def post(self, request):
+        pass
+
     
 
 class GoogleLoginView(APIView):
@@ -180,7 +198,7 @@ class GoogleLoginView(APIView):
             user = CustomUser.objects.create_user(
                 name=name,
                 email=email,
-                password=''
+                password='123123'
             )
             print('new user by googleLogin',user)
 
@@ -198,5 +216,7 @@ class GoogleLoginView(APIView):
         }
         print('content',content)
         return Response(content, status=status.HTTP_200_OK)
-        
+    
+
+
 
