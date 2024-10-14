@@ -5,7 +5,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import CustomOwner, CustomUser
-from .seriallizers import OwnerSerializer, UserSerializer
+from .seriallizers import OwnerSerializer, UserSerializer, AdminUserSerializer
 
 import random
 from django.conf import settings
@@ -15,19 +15,19 @@ from django.core.mail import send_mail
     
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-class CustomOwnerTokenView(TokenObtainPairView):
-    def post(self, request, *args, **kwargs):
-        owner = CustomOwner.objects.filter(email=request.data['email']).first()
-        if owner and owner.check_password(request.data['password']):
-            # Issue token for owner
-            return super().post(request, *args, **kwargs)
-        return Response({'error': 'Invalid credentials'}, status=401)
+# class CustomOwnerTokenView(TokenObtainPairView):
+#     def post(self, request, *args, **kwargs):
+#         owner = CustomOwner.objects.filter(email=request.data['email']).first()
+#         if owner and owner.check_password(request.data['password']):
+#             # Issue token for owner
+#             return super().post(request, *args, **kwargs)
+#         return Response({'error': 'Invalid credentials'}, status=401)
 
-class CustomOwnerRefreshToken(RefreshToken):
-    @classmethod
-    def for_owner(cls, owner):
-        token = cls()
-        return token
+# class CustomOwnerRefreshToken(RefreshToken):
+#     @classmethod
+#     def for_owner(cls, owner):
+#         token = cls()
+#         return token
      
 class RegisterUser(APIView):
     permission_classes = [permissions.AllowAny]
@@ -141,6 +141,8 @@ class LoginView(APIView):
         
         if user_type == 'user':
             model, serializer, role = CustomUser, UserSerializer, 'user'
+        elif user_type == 'admin':
+            model,serializer,role = CustomUser, AdminUserSerializer, 'admin'
         else:
             model, serializer, role = CustomOwner, OwnerSerializer, 'owner'
 
@@ -154,12 +156,17 @@ class LoginView(APIView):
 
         print('password correct')
         
-        if user_type == 'user':
-            refresh = RefreshToken.for_user(user)
-            print('user_type == user') 
-        else:
-            refresh = CustomOwnerRefreshToken.for_owner(user)
-            print('user_type = owner')
+        if user_type == 'admin' and not user.is_superuser:
+            return Response({"error": "User is not an admin. Access denied."}, status=status.HTTP_403_FORBIDDEN)
+        
+        refresh = RefreshToken.for_user(user)
+        print('user_type == user') 
+        # if user_type == 'user':
+        #     refresh = RefreshToken.for_user(user)
+        #     print('user_type == user') 
+        # else:
+        #     refresh = CustomOwnerRefreshToken.for_owner(user)
+        #     print('user_type = owner')
 
         refresh['role'] = role
         refresh['email'] = str(user.email)

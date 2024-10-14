@@ -1,6 +1,6 @@
 from django.db import models
 
-from authentication.models import CustomOwner
+from authentication.models import CustomUser
 
 class Amenity(models.Model):
     amenity_name = models.CharField(max_length=100)
@@ -18,7 +18,7 @@ class Amenity(models.Model):
     
 class Property(models.Model):
     # Automatic Details
-    host = models.ForeignKey(CustomOwner, on_delete=models.CASCADE, related_name='hostels')  # ForeignKey to Host model
+    host = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='hostels')  # ForeignKey to Host model
 
     # Property Details
     PROPERTY_TYPE_CHOICES = [
@@ -33,7 +33,7 @@ class Property(models.Model):
     address = models.CharField(max_length=255)
     city = models.CharField(max_length=100)
     postcode = models.IntegerField()
-    thumbnail_image = models.ImageField(upload_to='hostel_thumbnails/', blank=True, null=True)
+    thumbnail_image = models.ImageField(upload_to='property_thumbnails/', blank=True, null=True)
     total_bed_rooms = models.IntegerField()
     no_of_beds = models.IntegerField()
     is_private = models.BooleanField(default=False)  # Booking the whole house like rent or apartment
@@ -87,15 +87,18 @@ class Property(models.Model):
 
     min_nights = models.IntegerField(blank=True, null=True)  # Lock-in period
     max_nights = models.IntegerField(blank=True, null=True)  # Optional
-    notice_period = models.IntegerField()  # Days (less than min_nights)
+    notice_period = models.IntegerField(default=0)  # Days (less than min_nights)
 
     free_cancellation = models.BooleanField(default=False)
     cancellation_period = models.IntegerField(default=0)  # No. of days before check-in
 
     caution_deposit = models.IntegerField(default=0) # in Rupees
 
+    class Meta:
+        unique_together = ('host', 'property_name', 'address','property_type')
+
     def __str__(self):
-        return self.hostel_name
+        return self.property_name
     
 class PropertyAmenity(models.Model):
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='property_amenities')
@@ -107,7 +110,6 @@ class PropertyAmenity(models.Model):
 
 class PropertyDocument(models.Model):
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='documents')
-    document_type = models.CharField(max_length=100)  # e.g., "License", "Ownership Proof"
     file = models.FileField(upload_to='property_documents/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
