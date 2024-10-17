@@ -4,7 +4,10 @@ from rest_framework.response import Response
 from .models import PropertyDocument, Property
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer, PropertyDocumentUploadSerializer
+from .serializers import PropertySerializer, PropertyDocumentSerializer, PropertyDocumentUploadSerializer,PropertyViewSerializer
+
+from .utils import CustomPagination
+
 
 
 #  =============================== PROPERTY CREATION =============================
@@ -20,28 +23,25 @@ class PropertyDetails(APIView):
         serializer = PropertySerializer(data=request.data, context={'request': request})
         print('..........serializer', serializer)
         
-        # Validate and save the serializer
         if serializer.is_valid():
             print('valid serializer===========')
             property_instance = serializer.save(host=request.user)
             print('//////////dd', property_instance)
             
-            # Return the serialized data, including the ID of the saved property instance
+            # serialized data plus property_id for saving that in frontend
             response_data = {
                 'data': PropertySerializer(property_instance).data,
-                'property_id': property_instance.id,  # Include the unique ID here
+                'property_id': property_instance.id, 
             }
             print(response_data,'response......................')
             
             return Response(response_data, status=status.HTTP_201_CREATED)
 
         print('error------------------', serializer.errors)
-        # Return an error response if the serializer is not valid
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     # for updation
     def put(self, request, pk):
-        # Retrieve the property instance to update
         print('lllllllllllllllll')
         try:
             property_instance = Property.objects.get(pk=pk, host=request.user)
@@ -51,24 +51,20 @@ class PropertyDetails(APIView):
         print('Updating property:', property_instance)
         print('Updated data:', request.data)
 
-        # Use the existing instance to update
         serializer = PropertySerializer(property_instance, data=request.data, partial=True, context={'request': request})
         
-        # Validate and save the serializer
         if serializer.is_valid():
             updated_property_instance = serializer.save()
             print('Updated property instance:', updated_property_instance)
 
-            # Return the serialized data, including the ID of the updated property instance
             response_data = {
                 'data': PropertySerializer(updated_property_instance).data,
-                'property_id': updated_property_instance.id  # Include the unique ID here
+                'property_id': updated_property_instance.id  
             }
             
             return Response(response_data, status=status.HTTP_200_OK)
 
         print('error------------------', serializer.errors)
-        # Return an error response if the serializer is not valid
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
@@ -78,12 +74,10 @@ class PropertyDocumentUploadView(APIView):
 
     def get(self, request, property_id, *args, **kwargs):
         try:
-            # Fetch all documents for the property
             documents = PropertyDocument.objects.filter(property_id=property_id)
             if not documents.exists():
                 return Response({"message": "No documents found for this property."}, status=status.HTTP_404_NOT_FOUND)
             
-            # Serialize the documents
             serializer = PropertyDocumentSerializer(documents, many=True)
             return Response({"documents": serializer.data}, status=status.HTTP_200_OK)
         
@@ -115,24 +109,24 @@ class ChangeStatus(APIView):
 
 
 # =============================== All PROPERTIES ==================================
+
+# function to retrieve all the properites in the admin side and user side for displaying
 @api_view(['GET'])
 @permission_classes([permissions.IsAdminUser]) 
 def get_all_properties(request):
-    # Fetch properties based on their status
-    verified_properties = Property.objects.filter(status='verified')
-    in_review_properties = Property.objects.filter(status='in_review')
-    rejected_properties = Property.objects.filter(status='rejected')
+    status_filter = request.query_params.get('propStatus')
+    pg = request.query_params.get('pg_no')
+    print("Status filter:", status_filter,pg)
 
-    # If no serializer is used, return raw data
-    verified_data = list(verified_properties.values())
-    in_review_data = list(in_review_properties.values())
-    rejected_data = list(rejected_properties.values())
+    if status_filter :
+        properties = Property.objects.filter(status=status_filter)
+    else:
+        properties = Property.objects.all()
 
-    # Return the data in a structured format
-    return Response({
-        "verified_properties": verified_data,
-        "in_review_properties": in_review_data,
-        "rejected_properties": rejected_data
-    })
+    paginator = CustomPagination()
+    paginated_properties = paginator.paginate_queryset(properties, request)
 
+    serializer = PropertyViewSerializer(paginated_properties, many=True)
+
+    return paginator.get_paginated_response(serializer.data)
 

@@ -131,6 +131,7 @@ class LoginView(APIView):
     def post(self, request):
         print('user/view/login')
         try:
+            print(request.data)
             email = request.data['email']
             password = request.data['password']
             user_type = request.data['user_type']

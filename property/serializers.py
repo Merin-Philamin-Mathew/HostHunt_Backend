@@ -1,5 +1,8 @@
 from rest_framework import serializers
 from .models import Property,PropertyDocument
+
+# serializers for adding the details in the owner side
+# till step one
 class PropertySerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
@@ -12,11 +15,17 @@ class PropertySerializer(serializers.ModelSerializer):
             'thumbnail_image',
             'total_bed_rooms',
             'no_of_beds',
+            'status',
+            'is_listed'
         ]
 
     def create(self, validated_data):
         property_instance = Property.objects.create(**validated_data)
         return property_instance
+    # def create(self, validated_data):
+        # # Set the host from the request
+        # validated_data['host'] = self.context['request'].user
+        # return super().create(validated_data)
 
     def to_representation(self, instance):
         rep = super().to_representation(instance)
@@ -45,18 +54,16 @@ class PropertySerializer(serializers.ModelSerializer):
         
         return attrs
 
-
 class PropertyDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PropertyDocument
-        fields = ['id', 'property', 'file', 'upload_date']
+        fields = ['id', 'property', 'file', 'uploaded_at']
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
         representation['file_url'] = instance.file.url  # Include file URL for frontend usage
         return representation
-    
-    
+   
 class PropertyDocumentUploadSerializer(serializers.Serializer):
     property_id = serializers.IntegerField()
     files = serializers.ListField(
@@ -65,12 +72,36 @@ class PropertyDocumentUploadSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         property_id = validated_data.get('property_id')
-        property_instance = Property.objects.get(id=property_id)
+        try:
+            property_instance = Property.objects.get(id=property_id)
+        except Property.DoesNotExist:
+            raise serializers.ValidationError("Property with the given ID does not exist.")
+        
         files = validated_data.pop('files')
 
-        document_objects = []
-        for file in files:
-            document_object = PropertyDocument.objects.create(property=property_instance, file=file)
-            document_objects.append(document_object)
-        
+        document_objects = [
+            PropertyDocument.objects.create(property=property_instance, file=file)
+            for file in files
+        ]
+
         return document_objects
+
+# serializer for admin management___ view -> get_all_properties
+
+class PropertyViewSerializer(serializers.ModelSerializer):
+    host = serializers.EmailField(source='host.email', read_only=True)
+    class Meta:
+        model = Property
+        fields = [
+            'host',
+            'property_name',
+            'property_type',
+            'city',
+            'postcode',
+            'address',
+            'thumbnail_image',
+            'total_bed_rooms',
+            'no_of_beds',
+            'status',
+            'is_listed',
+        ]
