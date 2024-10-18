@@ -1,3 +1,6 @@
+import boto3
+from django.conf import settings
+
 from rest_framework.views import APIView
 from rest_framework import status, permissions
 from rest_framework.response import Response
@@ -18,22 +21,45 @@ class PropertyDetails(APIView):
 
     #for creation
     def post(self, request):
-        print('property/propertyDetails/////////////', request.user)
+        print(request.data,'property/propertyDetails/////////////', request.user)
+        data = request.data.copy()
+        data['host'] = request.user.id
+        image_file = request.FILES.get('thumbnail_image')
+     
+        if image_file:
+            # Upload the image to S3
+            s3 = boto3.client('s3',
+                              aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                              aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                              region_name=settings.AWS_S3_REGION_NAME)
+            print(s3,'kkkkkkk')
+            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+            s3_file_path = f"property_thumbnails/{request.user}/{image_file.name}"
 
-        serializer = PropertySerializer(data=request.data, context={'request': request})
-        print('..........serializer', serializer)
+            try:
+                # Upload the file to S3
+                print('going to upload to s3')
+                s3.upload_fileobj(image_file, bucket_name, s3_file_path,
+                                  ExtraArgs={ 'ContentType': image_file.content_type})
+                print('1')
+                # Get the S3 URL for the uploaded image
+                image_url = f"https://{bucket_name}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_file_path}"
+                print('2',image_url)
+                data['thumbnail_image_url'] = image_url
+
+            except Exception as e:
+                print('3 error',e)
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+        serializer = PropertySerializer(data=data, context={'request': request})
         
         if serializer.is_valid():
-            print('valid serializer===========')
-            property_instance = serializer.save(host=request.user)
-            print('//////////dd', property_instance)
-            
-            # serialized data plus property_id for saving that in frontend
+            serializer.save()
             response_data = {
-                'data': PropertySerializer(property_instance).data,
-                'property_id': property_instance.id, 
+                'data': serializer.data,
+                'property_id': serializer.data.id, 
             }
-            print(response_data,'response......................')
             
             return Response(response_data, status=status.HTTP_201_CREATED)
 

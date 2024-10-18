@@ -10,7 +10,7 @@ class AmenityAdmin(admin.ModelAdmin):
     list_display = ["amenity_name"]
 
 class ProDocAdmin(admin.ModelAdmin):
-    list_display = ["property_id", 'file']
+    list_display = ["property_id", 'doc_url']
 
 # Register the models with their respective admin classes
 admin.site.register(Property, PropertyAdmin)

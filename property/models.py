@@ -3,7 +3,7 @@ from django.db import models
 from authentication.models import CustomUser
 
 class Amenity(models.Model):
-    amenity_name = models.CharField(max_length=100)
+    amenity_name = models.CharField(unique=True,max_length=100)
     AMENITY_TYPE_CHOICES = [
         ('gen', 'GENERAL'),
     ]
@@ -33,7 +33,7 @@ class Property(models.Model):
     address = models.CharField(max_length=255)
     city = models.CharField(max_length=100)
     postcode = models.IntegerField()
-    thumbnail_image = models.ImageField(upload_to='property_thumbnails/', blank=True, null=True)
+    thumbnail_image_url =  models.URLField(max_length=500)
     total_bed_rooms = models.IntegerField()
     no_of_beds = models.IntegerField()
     is_private = models.BooleanField(default=False)  # Booking the whole house like rent or apartment
@@ -78,12 +78,12 @@ class Property(models.Model):
     guardian = models.BooleanField(default=False)
 
     child_permit = models.BooleanField(default=False)
-    child_from_age = models.DateTimeField(blank=True, null=True)
-    child_to_age = models.DateTimeField(blank=True, null=True)
+    child_from_age = models.IntegerField(blank=True, null=True)
+    child_to_age = models.IntegerField(blank=True, null=True)
 
     curfew = models.BooleanField(default=False)
-    curfew_from_time = models.DateTimeField(blank=True, null=True)
-    curfew_to_time = models.DateTimeField(blank=True, null=True)
+    curfew_from_time = models.TimeField(blank=True, null=True)
+    curfew_to_time = models.TimeField(blank=True, null=True)
 
     min_nights = models.IntegerField(blank=True, null=True)  # Lock-in period
     max_nights = models.IntegerField(blank=True, null=True)  # Optional
@@ -110,11 +110,11 @@ class PropertyAmenity(models.Model):
 
 class PropertyDocument(models.Model):
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='documents')
-    file = models.FileField(upload_to='property_documents/')
+    doc_url = models.URLField(max_length=500)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.property.property_name} - {self.document_type}"
+        return f"{self.property.property_name}-{self.doc_url}"
 
 
 

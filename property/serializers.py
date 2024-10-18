@@ -7,12 +7,13 @@ class PropertySerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
         fields = [
+            'host',
             'property_name',
             'property_type',
             'city',
             'postcode',
             'address',
-            'thumbnail_image',
+            'thumbnail_image_url',
             'total_bed_rooms',
             'no_of_beds',
             'status',
@@ -22,15 +23,11 @@ class PropertySerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         property_instance = Property.objects.create(**validated_data)
         return property_instance
-    # def create(self, validated_data):
-        # # Set the host from the request
-        # validated_data['host'] = self.context['request'].user
-        # return super().create(validated_data)
 
-    def to_representation(self, instance):
-        rep = super().to_representation(instance)
-        rep['thumbnail_image'] = instance.thumbnail_image.url if instance.thumbnail_image else None
-        return rep
+    # def to_representation(self, instance):
+    #     rep = super().to_representation(instance)
+    #     rep['thumbnail_image'] = instance.thumbnail_image.url if instance.thumbnail_image else None
+    #     return rep
 
     def validate(self, attrs):
         host = self.context['request'].user
@@ -38,7 +35,6 @@ class PropertySerializer(serializers.ModelSerializer):
         address = attrs.get('address')
         property_type = attrs.get('property_type')
         
-        # If we are updating (i.e., there is an instance), we should exclude the current instance from the check
         property_instance = self.instance
 
         # Check if the property already exists for the host (excluding the current property in case of updates)
