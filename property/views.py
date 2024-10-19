@@ -1,4 +1,5 @@
 import boto3
+import urllib.parse
 from django.conf import settings
 
 from rest_framework.views import APIView
@@ -10,6 +11,7 @@ from rest_framework.decorators import api_view, permission_classes
 from .serializers import PropertySerializer, PropertyDocumentSerializer, PropertyDocumentUploadSerializer,PropertyViewSerializer
 
 from .utils import CustomPagination
+from .utils import Upload_to_s3, delete_file_from_s3
 
 
 
@@ -21,54 +23,45 @@ class PropertyDetails(APIView):
 
     #for creation
     def post(self, request):
-        print(request.data,'property/propertyDetails/////////////', request.user)
         data = request.data.copy()
         data['host'] = request.user.id
         image_file = request.FILES.get('thumbnail_image')
      
         if image_file:
-            # Upload the image to S3
-            s3 = boto3.client('s3',
-                              aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                              aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                              region_name=settings.AWS_S3_REGION_NAME)
-            print(s3,'kkkkkkk')
-            bucket_name = settings.AWS_STORAGE_BUCKET_NAME
-            s3_file_path = f"property_thumbnails/{request.user}/{image_file.name}"
-
             try:
-                # Upload the file to S3
-                print('going to upload to s3')
-                s3.upload_fileobj(image_file, bucket_name, s3_file_path,
-                                  ExtraArgs={ 'ContentType': image_file.content_type})
-                print('1')
-                # Get the S3 URL for the uploaded image
-                image_url = f"https://{bucket_name}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{s3_file_path}"
-                print('2',image_url)
-                data['thumbnail_image_url'] = image_url
-
+                s3_file_path = f"property_thumbnails/{data['host']}/{data['property_name']}/"
+                response = Upload_to_s3(image_file,s3_file_path)
+                data['thumbnail_image_url'] = response
             except Exception as e:
-                print('3 error',e)
                 return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
         serializer = PropertySerializer(data=data, context={'request': request})
-        
+
         if serializer.is_valid():
-            serializer.save()
+            property_instance = serializer.save()
             response_data = {
                 'data': serializer.data,
-                'property_id': serializer.data.id, 
+                'property_id': property_instance.id,  
             }
-            
             return Response(response_data, status=status.HTTP_201_CREATED)
-
-        print('error------------------', serializer.errors)
+        print('10000')
+        delete_file_from_s3(s3_file_path)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     # for updation
     def put(self, request, pk):
         print('lllllllllllllllll')
+        data = request.data.copy()
+        image_file = request.FILES.get('thumbnail_image')
+
+        s3_file_path = f"property_thumbnails/{request.user.id}/{data['property_name']}/{image_file.name}"
+        if image_file != s3_file_path:
+            try:
+                response = Upload_to_s3(image_file,s3_file_path)
+                data['thumbnail_image_url'] = response
+            except Exception as e:
+                return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
         try:
             property_instance = Property.objects.get(pk=pk, host=request.user)
         except Property.DoesNotExist:
