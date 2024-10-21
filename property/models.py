@@ -44,6 +44,8 @@ class Property(models.Model):
         ('in_review', 'In Review'),
         ('rejected', 'Rejected'),
         ('verified', 'Verified'),
+        ('ready_to_list', 'Ready to List'),
+        ('published', 'Published')
     ]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='in_progress')
     is_listed = models.BooleanField(default=False) #host can also change later

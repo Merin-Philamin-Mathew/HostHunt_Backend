@@ -72,4 +72,14 @@ def extract_s3_key_from_url(url):
         return decoded_key
     else:
         raise ValueError("Invalid S3 URL or mismatch with bucket/region")
+    
+def delete_file_from_s3_by_url(url):
+    try:
+        s3_file_path = extract_s3_key_from_url(url)
+        s3.delete_object(Bucket=bucket_name, Key=s3_file_path)
+        print(f"{s3_file_path} deleted successfully from {bucket_name}")
+        return True
+    except Exception as e:
+        print('Error while deleting the file:', e)
+        return False
 

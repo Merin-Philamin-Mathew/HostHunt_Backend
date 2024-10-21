@@ -55,7 +55,8 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',  # Optional, for token blacklisting
     
     'authentication',
-    'property'
+    'property',
+    'admin_management',
 
 ]
 
@@ -76,7 +77,6 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-# put on your settings.py file below INSTALLED_APPS
 REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -164,6 +164,9 @@ CORS_ALLOWED_ORIGINS  = [
 
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173',
+]
 
 ROOT_URLCONF = 'project.urls'
 

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Property,PropertyDocument
+from .models import Property,PropertyDocument,PropertyAmenity
 
 # serializers for adding the details in the owner side
 # till step one
@@ -23,11 +23,6 @@ class PropertySerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         property_instance = Property.objects.create(**validated_data)
         return property_instance
-
-    # def to_representation(self, instance):
-    #     rep = super().to_representation(instance)
-    #     rep['thumbnail_image'] = instance.thumbnail_image.url if instance.thumbnail_image else None
-    #     return rep
 
     def validate(self, attrs):
         host = self.context['request'].user
@@ -53,51 +48,77 @@ class PropertySerializer(serializers.ModelSerializer):
 class PropertyDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PropertyDocument
-        fields = ['id', 'property', 'file', 'uploaded_at']
-
-    def to_representation(self, instance):
-        representation = super().to_representation(instance)
-        representation['file_url'] = instance.file.url  # Include file URL for frontend usage
-        return representation
+        fields = ['property','id', 'doc_url']
    
-class PropertyDocumentUploadSerializer(serializers.Serializer):
-    property_id = serializers.IntegerField()
-    files = serializers.ListField(
-        child=serializers.FileField(max_length=10000, allow_empty_file=False, use_url=False)
-    )
-
-    def create(self, validated_data):
-        property_id = validated_data.get('property_id')
-        try:
-            property_instance = Property.objects.get(id=property_id)
-        except Property.DoesNotExist:
-            raise serializers.ValidationError("Property with the given ID does not exist.")
-        
-        files = validated_data.pop('files')
-
-        document_objects = [
-            PropertyDocument.objects.create(property=property_instance, file=file)
-            for file in files
-        ]
-
-        return document_objects
-
 # serializer for admin management___ view -> get_all_properties
-
 class PropertyViewSerializer(serializers.ModelSerializer):
     host = serializers.EmailField(source='host.email', read_only=True)
     class Meta:
         model = Property
         fields = [
+            'id',
             'host',
             'property_name',
             'property_type',
             'city',
             'postcode',
             'address',
-            'thumbnail_image',
+            'thumbnail_image_url',
             'total_bed_rooms',
             'no_of_beds',
             'status',
             'is_listed',
+        ]
+
+class PropertyAmenitySerializer(serializers.ModelSerializer):
+    amenity_name = serializers.CharField(source='amenity.amenity_name', read_only=True)
+    property = serializers.PrimaryKeyRelatedField(read_only=True)  
+    class Meta:
+        model = PropertyAmenity
+        fields = ['property', 'amenity_name', 'free']  
+
+
+class PropertyDetailedViewSerializer(serializers.ModelSerializer):
+    host = serializers.EmailField(source='host.email', read_only=True)
+    documents = PropertyDocumentSerializer(many=True, read_only=True) 
+    property_amenities = PropertyAmenitySerializer(many=True, read_only=True)  
+    class Meta:
+        model = Property
+        fields = [
+            'id',
+            'host',
+            'property_name',
+            'property_type',
+            'description',
+            'address',
+            'city',
+            'postcode',
+            'thumbnail_image_url',
+            'total_bed_rooms',
+            'no_of_beds',
+            'is_private',
+            'status',
+            'is_listed',
+            'check_in_time',
+            'check_out_time',
+            'smoking',
+            'pets_permit',
+            'drinking_permit',
+            'gender_restriction',
+            'visitors',
+            'guardian',
+            'child_permit',
+            'child_from_age',
+            'child_to_age',
+            'curfew',
+            'curfew_from_time',
+            'curfew_to_time',
+            'min_nights',
+            'max_nights',
+            'notice_period',
+            'free_cancellation',
+            'cancellation_period',
+            'caution_deposit',
+            'documents',
+            'property_amenities'  
         ]

@@ -3,7 +3,7 @@ from .models import Property, Amenity, PropertyDocument
 
 # Define an admin class for CustomOwner
 class PropertyAdmin(admin.ModelAdmin):
-    list_display = ["property_name", "property_type","city","postcode"]
+    list_display = ["id","property_name","status", "property_type","city","postcode"]
 
 # Define an admin class for CustomUser
 class AmenityAdmin(admin.ModelAdmin):
