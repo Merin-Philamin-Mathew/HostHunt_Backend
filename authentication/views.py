@@ -84,7 +84,6 @@ class VerifyOTP(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        print("jjjjjjjjjjjjjjj",request.headers)
         print('authentication/otp')
         otp = request.data.get('otp')
         user_type = request.data.get('user_type')
@@ -135,7 +134,6 @@ class LoginView(APIView):
             email = request.data['email']
             password = request.data['password']
             user_type = request.data['user_type']
-            print(email,password, user_type)
         except KeyError:
             return Response({"error": "Not sufficient data"})
         print('received datas')

@@ -5,13 +5,13 @@ from django.shortcuts import get_object_or_404
 
 
 from rest_framework.views import APIView
-from rest_framework import status, permissions, generics
+from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
-from .models import PropertyDocument, Property
+from .models import PropertyDocument, Property, Rooms
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer
+from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property
 
 from .utils import CustomPagination
 from .utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
@@ -118,7 +118,6 @@ class PropertyDocumentUploadView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
     def post(self, request, *args, **kwargs):
-        print('///////////////////',request.data)
         property_id = request.data.get('property_id')
         files = request.FILES.getlist('files')
         serializer = PropertyDocumentSerializer(data=request.data)
@@ -172,7 +171,7 @@ class PropertyDocumentUploadView(APIView):
 class ChangeStatus_Submit_Review(APIView):
     permission_classes = [permissions.IsAuthenticated]
     
-    VALID_STATUSES = ["in_review","in_progress"]
+    VALID_STATUSES = ["in_review","in_progress","published"]
 
     def post(self, request, property_id, status):
         
@@ -189,6 +188,87 @@ class ChangeStatus_Submit_Review(APIView):
         except Property.DoesNotExist:
             return Response({"error": "Property not found."}, status=404)
 
+
+class RentalApartmentCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    print('rentaleapp_createview/onboarding')
+    def post(self, request):
+        data = request.data
+        try:
+            print('rentaleapp_createview/onboarding',data)
+            property = data.get('property')
+            print('rentaleapp_createview/property',property)
+            if not property:
+                print('1/onboarding')
+                return Response({'error': 'Property ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            print('36/onboarding')
+            try:
+                print('2/onboarding')
+                property_instance = Property.objects.get(id=property)
+            except Property.DoesNotExist:
+                return Response({'error': 'Property not found'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Create a RentalApartment instance
+            print('34/onboarding')
+            serializer = RentalApartmentSerializer(data=data)
+            if serializer.is_valid():
+                print('3/onboarding')
+                rental_apartment = serializer.save(property=property_instance)
+                return Response({'message': 'Rental apartment created successfully', 'data': serializer.data}, status=status.HTTP_201_CREATED)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class RoomViewSet(viewsets.ViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        print('room creation', request.data)
+        if 'property' not in request.data:
+            print('1')
+            return Response({'error': 'Property field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        print('2')
+
+        serializer = RoomSerializer(data=request.data)
+        if serializer.is_valid():
+            print('3',serializer)
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        print(serializer.errors)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def put(self, request, room_id=None):
+        try:
+            room = Rooms.objects.get(pk=room_id)
+        except Rooms.DoesNotExist:
+            return Response({'error': 'Room not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = RoomSerializer(room, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, room_id=None):
+        try:
+            room = Rooms.objects.get(pk=room_id)
+        except Rooms.DoesNotExist:
+            return Response({'error': 'Room not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        room.delete()
+        return Response({'message': 'Room deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class RoomListByPropertyView(generics.ListAPIView):
+    serializer_class = RoomListSerializer_Property
+    def get_queryset(self):
+        property_id = self.kwargs.get('property_id')
+        return Rooms.objects.filter(property=property_id)
 #  =============================== PROPERTY LISTING BY HOST =============================
 class HostPropertyListView(generics.ListAPIView):
     serializer_class = PropertyViewSerializer
@@ -218,6 +298,8 @@ def get_all_properties_basic_details(request):
         properties = Property.objects.all()
 
     paginator = CustomPagination()
+    if status_filter == 'published':
+        paginator.page_size = 5
     paginated_properties = paginator.paginate_queryset(properties, request)
 
     serializer = PropertyViewSerializer(paginated_properties, many=True)

@@ -1,11 +1,15 @@
 
 from rest_framework.pagination import PageNumberPagination
 
-# Create a custom pagination class
 class CustomPagination(PageNumberPagination):
-    page_size = 4  # Number of items per page
+    page_size = 6 
     page_size_query_param = 'page_size'
     max_page_size = 100
+
+    def get_page_size(self, request):
+        if hasattr(self, 'custom_page_size'):
+            return self.custom_page_size
+        return super().get_page_size(request)
 
 import boto3
 import urllib.parse

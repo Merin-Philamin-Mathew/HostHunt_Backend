@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Property,PropertyDocument,PropertyAmenity
+from .models import Property,PropertyDocument,PropertyAmenity,RentalApartment,Rooms
 
 # serializers for adding the details in the owner side
 # till step one
@@ -49,7 +49,65 @@ class PropertyDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = PropertyDocument
         fields = ['property','id', 'doc_url']
-   
+
+
+class RentalApartmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RentalApartment
+        fields = '__all__'
+        # extra_kwargs = {
+        #     'booking_amount': {'min_value': 0.01}, # Ensure booking_amount is greater than 0
+        # }
+
+
+class RoomSerializer(serializers.ModelSerializer):
+    room_name = serializers.CharField(read_only=True)  
+
+    class Meta:
+        model = Rooms
+        fields = [
+            'id', 'room_name', 'room_type', 'is_private', 'description', 'property',
+            'occupancy', 'no_of_rooms', 'booking_amount_choice', 'price_per_night',
+            'monthly_rent', 'bed_type', 'area'
+        ]
+
+    def create(self, validated_data):
+        occupancy = validated_data.get('occupancy')
+        bed_type = validated_data.get('bed_type')
+        is_private = validated_data.get('is_private')
+        room_type = validated_data.get('room_type')
+
+        private_text = 'Private' if is_private else 'Shared'
+
+        room_name = f"{occupancy} {bed_type} {private_text} {room_type}"
+        validated_data['room_name'] = room_name
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        occupancy = validated_data.get('occupancy', instance.occupancy)
+        bed_type = validated_data.get('bed_type', instance.bed_type)
+        is_private = validated_data.get('is_private', instance.is_private)
+        room_type = validated_data.get('room_type', instance.room_type)
+
+        private_text = 'Private' if is_private else 'Shared'
+
+        instance.room_name = f"{occupancy}-{bed_type}-{private_text}-{room_type}"
+
+        return super().update(instance, validated_data)
+
+    def validate(self, data):
+        if not data.get('price_per_night') and not data.get('monthly_rent'):
+            raise serializers.ValidationError("Either price per night or monthly rent must be provided.")
+        return data
+
+# for getting rooms by property
+class RoomListSerializer_Property(serializers.ModelSerializer):
+    class Meta:
+        model = Rooms
+        fields = ['id', 'room_name', 'booking_amount_choice'] 
+
+
 # serializer for admin management___ view -> get_all_properties
 class PropertyViewSerializer(serializers.ModelSerializer):
     host = serializers.EmailField(source='host.email', read_only=True)
@@ -76,7 +134,6 @@ class PropertyAmenitySerializer(serializers.ModelSerializer):
     class Meta:
         model = PropertyAmenity
         fields = ['property', 'amenity_name', 'free']  
-
 
 class PropertyDetailedViewSerializer(serializers.ModelSerializer):
     host = serializers.EmailField(source='host.email', read_only=True)

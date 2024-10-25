@@ -2,16 +2,18 @@ from django.db import models
 
 from authentication.models import CustomUser
 
+
+# =======================================  DEATAILS FOR VERIFICATION OF PROPERTY  ========================================
+# ========================================================================================================================
 class Amenity(models.Model):
     amenity_name = models.CharField(unique=True,max_length=100)
     AMENITY_TYPE_CHOICES = [
         ('gen', 'GENERAL'),
     ]
     amenity_type = models.CharField(max_length=100, null=True, blank=True, choices=AMENITY_TYPE_CHOICES )
-    icon = models.CharField(max_length=100, null=True, blank=True)  # e.g., name of an icon class
+    icon = models.CharField(max_length=100, null=True, blank=True) 
     is_premium = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)  # status flag for toggling amenities
-    
+    is_active = models.BooleanField(default=True) 
     def __str__(self):
         return self.amenity_name
 
@@ -113,10 +115,78 @@ class PropertyAmenity(models.Model):
 class PropertyDocument(models.Model):
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='documents')
     doc_url = models.URLField(max_length=500)
+    doc_name = models.CharField(max_length=255,default='doc')
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.property.property_name}-{self.doc_url}"
 
 
+# =======================================  DEATAILS FOR ONBOARDING OF PROPERTY  ========================================
+# ========================================================================================================================
+# Model for property images (applicable to rental apartments, hostels, PGs)
+class PropertyImage(models.Model):
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='property_images')
+    property_image_url = models.URLField(max_length=255)
+    image_name = models.CharField(max_length=255)
+
+    def __str__(self):
+        return f"Property Image - {self.image_name} for {self.property.property_name}"
+
+class RentalApartment(models.Model):
+    property = models.OneToOneField(Property, on_delete=models.CASCADE, related_name='more_details_of_house')
+    buildup_area = models.IntegerField()
+    property_age = models.IntegerField()
+    monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
+    booking_amount = models.DecimalField(max_digits=10, decimal_places=2) #no free booking #should be greater than 0
+    available_from = models.DateTimeField()
+    floor_num = models.IntegerField()# The floor_num field represents the floor number on which the rental apartment is located. It indicates which level of the building the apartment is situated on. 
+    rooms = models.CharField(max_length=255)  # Comma-separated string mapping (e.g., 'kitchen,gym_room,hall')
+    water_supply = models.BooleanField(default=False)
+    gas_pipeline = models.BooleanField(default=False)
+    
+    FURNISHING_CHOICES = [
+        ('fully', 'Fully Furnished'),
+        ('semi', 'Semi Furnished'),
+        ('unfurnished', 'Unfurnished'),
+    ]
+    furnishing_status = models.CharField(max_length=20, choices=FURNISHING_CHOICES)
+    furnishings = models.CharField(max_length=255)  # Comma-separated string mapping (e.g., 'bed,fridge,AC')
+
+    def __str__(self):
+        return f"Rental Apartment - {self.property.property_name}"
+
+# Model for rooms in PGs and hostels
+class Rooms(models.Model):
+    room_name = models.CharField(max_length=255)  # Format: type-occupancy-bed_type (auto-generated)
+    room_type = models.CharField(max_length=100)
+    is_private = models.BooleanField()  # True for private rooms, False for shared rooms
+    description = models.TextField(blank=True, null=True)
+    property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='rooms')
+    
+    # important in case of booking // either price per night or monthly rent should be filled
+    occupancy = models.IntegerField()  # Number of beds in the room
+    no_of_rooms = models.IntegerField()  # 
+    BOOKING_AMOUNT_CHOICES = [
+        ('price_per_night', 'Price per night'),
+        ('monthly_rent', 'Monthly Rent'),
+    ]
+    booking_amount_choice = models.CharField(max_length=20, choices=BOOKING_AMOUNT_CHOICES)
+    price_per_night = models.DecimalField(blank=True, null=True, max_digits=10, decimal_places=2)  # Price per bed or per room
+    monthly_rent = models.DecimalField(blank=True, null=True, max_digits=10, decimal_places=2)  # Price per bed or per room
+    
+    bed_type = models.CharField(max_length=100)  # Bed or cot type, provided by the host
+    area = models.IntegerField()  # Room area in square feet
+    # room_thumbnail_image_url = models.URLField(max_length=255)
+
+    def __str__(self):
+        return f"Room - {self.room_name} in {self.property.property_name}"
+
+# Model for room images in PGs and hostels
+class RoomImage(models.Model):
+    room = models.ForeignKey(Rooms, on_delete=models.CASCADE, related_name='room_images')
+    room_image_url = models.URLField(max_length=255)
+
+    def __str__(self):
+        return f"Image for {self.room.room_name}"
 
