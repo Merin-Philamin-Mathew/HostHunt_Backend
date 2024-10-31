@@ -1,5 +1,5 @@
 from rest_framework.views import APIView
-from rest_framework import status, permissions
+from rest_framework import  permissions
 from rest_framework.response import Response
 
 from property.models import Property
@@ -8,8 +8,8 @@ from property.models import Property
 from rest_framework import permissions, status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from property.models import Property,CustomUser
-from .serializers import CustomUserSerializer
+from property.models import Property,CustomUser,Amenity
+from .serializers import CustomUserSerializer,AmenitySerializer
 
 from property.utils import CustomPagination
 
@@ -25,7 +25,6 @@ class AdminApproveOrRejectProperty(APIView):
 
         try:
             property_instance = Property.objects.get(id=property_id)
-            # previous_status = property_instance.status 
             property_instance.status = status
             property_instance.save()
 
@@ -50,3 +49,20 @@ class UserListView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         self.pagination_class.page_size = 6  # or any other value you want to set
         return super().get(request, *args, **kwargs)
+
+# ================================ADMIN PROPERTY CONFIGURATION=========================================
+# for listing all the amenity and creating
+class AmenityListCreateView(generics.ListCreateAPIView):
+    print('admin/amenities....')
+    queryset = Amenity.objects.all()
+    serializer_class = AmenitySerializer
+    permission_classes = [permissions.IsAdminUser]  
+    def post(self, request, *args, **kwargs):
+        print("Request Data:", request.data)  # Print request data here
+        return super().post(request, *args, **kwargs)
+# Retrieve, update, and delete a specific amenity
+class AmenityRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Amenity.objects.all()
+    serializer_class = AmenitySerializer
+    permission_classes = [permissions.IsAdminUser] 
+   

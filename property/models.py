@@ -8,8 +8,11 @@ from authentication.models import CustomUser
 class Amenity(models.Model):
     amenity_name = models.CharField(unique=True,max_length=100)
     AMENITY_TYPE_CHOICES = [
-        ('gen', 'GENERAL'),
-    ]
+    ('general', 'GENERAL'),
+    ('entertainment', 'ENTERTAINMENT'),
+    ('service', 'SERVICE')
+]
+
     amenity_type = models.CharField(max_length=100, null=True, blank=True, choices=AMENITY_TYPE_CHOICES )
     icon = models.CharField(max_length=100, null=True, blank=True) 
     is_premium = models.BooleanField(default=False)
@@ -189,4 +192,12 @@ class RoomImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.room.room_name}"
+    
+class RoomFacility(models.Model):
+    facility_name = models.CharField(unique=True,max_length=100)
+
+    icon = models.CharField(max_length=100, null=True, blank=True) 
+    is_active = models.BooleanField(default=True) 
+    def __str__(self):
+        return self.facility_name
 
