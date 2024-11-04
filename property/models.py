@@ -20,7 +20,28 @@ class Amenity(models.Model):
     def __str__(self):
         return self.amenity_name
 
+class RoomFacilities(models.Model):
+    facility_name = models.CharField(unique=True,max_length=100)
+    icon = models.CharField(max_length=100, null=True, blank=True) 
+    is_active = models.BooleanField(default=True) 
+    def __str__(self):
+        return self.facility_name
     
+class RoomType(models.Model):
+    room_type_name = models.CharField(unique=True,max_length=100)
+    icon = models.CharField(max_length=100, null=True, blank=True) 
+    is_active = models.BooleanField(default=True) 
+    def __str__(self):
+        return self.room_type_name
+
+class BedType(models.Model):
+    bed_type_name = models.CharField(unique=True,max_length=100)
+    icon = models.CharField(max_length=100, null=True, blank=True) 
+    is_active = models.BooleanField(default=True) 
+    def __str__(self):
+        return self.bed_type_name
+    
+
 class Property(models.Model):
     # Automatic Details
     host = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='hostels')  # ForeignKey to Host model
@@ -61,12 +82,12 @@ class Property(models.Model):
 
 
     # Policies and Services
-    check_in_time = models.DateTimeField(blank=True, null=True)
-    check_out_time = models.DateTimeField(blank=True, null=True)
+    check_in_time = models.TimeField(blank=True, null=True)
+    check_out_time = models.TimeField(blank=True, null=True)
     
     SMOKING_CHOICES = [
-        ('yes_everywhere', 'Yes, Everywhere'),
-        ('yes_designated', 'Yes, Designated Areas'),
+        ('yes', 'Yes, Everywhere'),
+        ('designated', 'Yes, Designated Areas'),
         ('no', 'No'),
     ]
     smoking = models.CharField(max_length=20, choices=SMOKING_CHOICES, default='no')
@@ -76,8 +97,8 @@ class Property(models.Model):
 
     GENDER_RESTRICTION_CHOICES = [
         ('no_restriction', 'No Gender Restriction'),
-        ('boys_only', 'Boys Only'),
-        ('girls_only', 'Girls Only'),
+        ('male_only', 'Male Only'),
+        ('female_only', 'Female Only'),
     ]
     gender_restriction = models.CharField(max_length=20, choices=GENDER_RESTRICTION_CHOICES, default='no_restriction')
 
@@ -106,6 +127,7 @@ class Property(models.Model):
 
     def __str__(self):
         return self.property_name
+    
     
 class PropertyAmenity(models.Model):
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='property_amenities')

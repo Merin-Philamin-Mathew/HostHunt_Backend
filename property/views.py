@@ -8,10 +8,10 @@ from rest_framework.views import APIView
 from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
-from .models import PropertyDocument, Property, Rooms
+from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property
+from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer
 
 from .utils import CustomPagination
 from .utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
@@ -100,6 +100,34 @@ class PropertyDetails(APIView):
         print('error------------------', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+# amenity creation
+class BulkCreatePropertyAmenitiesView(APIView):
+    def post(self, request, property_id):  # Add property_id here
+        # Extract data from the request
+        amenity_ids = request.data.get("amenity_ids", [])
+        free_status = request.data.get("free", True)
+        
+        # Validate that the property exists
+        try:
+            property_instance = Property.objects.get(id=property_id)
+        except Property.DoesNotExist:
+            return Response({"error": "Property not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check that amenity IDs are valid
+        amenities = Amenity.objects.filter(id__in=amenity_ids)
+        if amenities.count() != len(amenity_ids):
+            return Response({"error": "One or more amenity IDs are invalid."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create PropertyAmenity instances
+        property_amenities = [
+            PropertyAmenity(property=property_instance, amenity=amenity, free=free_status)
+            for amenity in amenities
+        ]
+
+        # Bulk create PropertyAmenity instances
+        PropertyAmenity.objects.bulk_create(property_amenities)
+        
+        return Response({"message": "Amenities added successfully."}, status=status.HTTP_201_CREATED)
 # step 2
 class PropertyDocumentUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -166,6 +194,52 @@ class PropertyDocumentUploadView(APIView):
 
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# policies and serivicies
+
+class PropertyPoliciesView(APIView):
+    def patch(self, request, property_id):
+        try:
+            property_instance = Property.objects.get(pk=property_id)
+        except Property.DoesNotExist:
+            return Response(
+                {"detail": "Property not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Check if property status allows updates
+        if property_instance.status in ['published', 'verified']:
+            return Response(
+                {"detail": "Cannot update policies for published or verified properties"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = PropertyPoliciesSerializer(
+            property_instance, 
+            data=request.data, 
+            partial=True
+        )
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GetPoliciesServicesView(generics.RetrieveAPIView):
+   permission_classes = [permissions.IsAuthenticated]
+   serializer_class = PropertyPoliciesSerializer
+   lookup_field = 'pk'
+   lookup_url_kwarg = 'property_id'
+   queryset = Property.objects.all()
+
+   def get_object(self):
+       property_id = self.kwargs.get('property_id')
+       try:
+           return Property.objects.get(pk=property_id, host=self.request.user)
+       except Property.DoesNotExist:
+           raise NotFound(detail="Property not found or you don't have permission.")
+
 
 # Final step  
 class ChangeStatus_Submit_Review(APIView):
