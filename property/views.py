@@ -8,10 +8,11 @@ from rest_framework.views import APIView
 from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
-from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity
+from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer
+from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer
+from admin_management.serializers import AmenitySerializer
 
 from .utils import CustomPagination
 from .utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
@@ -19,7 +20,7 @@ from .utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
 
 
 #  =============================== PROPERTY CREATION BY HOST =============================
-#  STEP 1
+#  STEP1 
 # for creating and updating the most mandatory property details where values cant be null
 class PropertyDetails(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -34,6 +35,7 @@ class PropertyDetails(APIView):
             try:
                 s3_file_path = f"property_thumbnails/{data['host']}/"
                 response = Upload_to_s3(image_file,s3_file_path)
+                print('uploaded image successfully')
                 data['thumbnail_image_url'] = response
             except Exception as e:
                 return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -41,18 +43,19 @@ class PropertyDetails(APIView):
             return Response({'error':'Thumbnail image is required!'},status=status.HTTP_400_BAD_REQUEST)
 
         serializer = PropertySerializer(data=data, context={'request': request})
-
+        print('9000')
         if serializer.is_valid():
+            print('serializer valid,5000')
             property_instance = serializer.save()
             response_data = {
                 'data': serializer.data,
                 'property_id': property_instance.id, 
-                's3_file_path' : s3_file_path,
+                # 's3_file_path' : s3_file_path,
             }
-            print(response_data,"response data in property details adding view")
+            print("response data in property details adding view",response_data,)
             return Response(response_data, status=status.HTTP_201_CREATED)
-        print('10000')
-        delete_file_from_s3(image_file.name)
+        print('103000')
+        delete_file_from_s3(s3_file_path,image_file.name)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     # for updation
@@ -100,35 +103,7 @@ class PropertyDetails(APIView):
         print('error------------------', serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-# amenity creation
-class BulkCreatePropertyAmenitiesView(APIView):
-    def post(self, request, property_id):  # Add property_id here
-        # Extract data from the request
-        amenity_ids = request.data.get("amenity_ids", [])
-        free_status = request.data.get("free", True)
-        
-        # Validate that the property exists
-        try:
-            property_instance = Property.objects.get(id=property_id)
-        except Property.DoesNotExist:
-            return Response({"error": "Property not found."}, status=status.HTTP_404_NOT_FOUND)
-        
-        # Check that amenity IDs are valid
-        amenities = Amenity.objects.filter(id__in=amenity_ids)
-        if amenities.count() != len(amenity_ids):
-            return Response({"error": "One or more amenity IDs are invalid."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Create PropertyAmenity instances
-        property_amenities = [
-            PropertyAmenity(property=property_instance, amenity=amenity, free=free_status)
-            for amenity in amenities
-        ]
-
-        # Bulk create PropertyAmenity instances
-        PropertyAmenity.objects.bulk_create(property_amenities)
-        
-        return Response({"message": "Amenities added successfully."}, status=status.HTTP_201_CREATED)
-# step 2
+# STEP2
 class PropertyDocumentUploadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -195,6 +170,7 @@ class PropertyDocumentUploadView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# STEP3 
 # policies and serivicies
 
 class PropertyPoliciesView(APIView):
@@ -225,7 +201,6 @@ class PropertyPoliciesView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 class GetPoliciesServicesView(generics.RetrieveAPIView):
    permission_classes = [permissions.IsAuthenticated]
    serializer_class = PropertyPoliciesSerializer
@@ -240,7 +215,69 @@ class GetPoliciesServicesView(generics.RetrieveAPIView):
        except Property.DoesNotExist:
            raise NotFound(detail="Property not found or you don't have permission.")
 
+# STEP4 
+# fetchAmenityclass 
+class AmenityListView(generics.ListAPIView):
+    queryset = Amenity.objects.all().order_by('id') 
+    serializer_class = AmenitySerializer
+    permission_classes = [permissions.IsAuthenticated]
 
+
+# for retrieving amenities of a single property 
+# for bulkcreating amenities of a single property
+class BulkPropertyAmenityView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, property_id):
+        """Retrieve all amenities for a specific property."""
+        print('Retrieving amenities for property')
+        try:
+            property_instance = Property.objects.get(id=property_id)
+        except Property.DoesNotExist:
+            return Response({"error": "Property not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        amenities = PropertyAmenity.objects.filter(property=property_instance)
+        serializer = PropertyAmenityCRUDSerializer(amenities, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def post(self, request, property_id):
+        """Create or update amenities for a specific property, removing any others not in the request."""
+        print('Processing amenities for property')
+
+        # Get amenity IDs and free status from the request data
+        amenity_ids = request.data.get("amenities_ids", [])
+        free_status = request.data.get("free", False)
+
+        # Prepare data in the expected format
+        data = [{"amenity_id": amenity_id, "free": free_status} for amenity_id in amenity_ids]
+        
+        serializer = PropertyAmenityCRUDSerializer(data=data, many=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            property_instance = Property.objects.get(id=property_id)
+        except Property.DoesNotExist:
+            return Response({"error": "Property not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        PropertyAmenity.objects.filter(property=property_instance).exclude(amenity_id__in=amenity_ids).delete()
+
+        amenities_data = serializer.validated_data
+        updated_amenities = []
+        for amenity_data in amenities_data:
+            amenity_id = amenity_data['amenity']['id']
+            free_status = amenity_data['free']
+            
+            property_amenity, created = PropertyAmenity.objects.update_or_create(
+                property=property_instance,
+                amenity_id=amenity_id,
+                defaults={'free': free_status}
+            )
+            updated_amenities.append(property_amenity)
+
+        return Response({"message": "Amenities processed successfully."}, status=status.HTTP_200_OK)
+
+    
 # Final step  
 class ChangeStatus_Submit_Review(APIView):
     permission_classes = [permissions.IsAuthenticated]
@@ -296,7 +333,7 @@ class RentalApartmentCreateView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+# crud of single room of a property
 class RoomViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -338,11 +375,28 @@ class RoomViewSet(viewsets.ViewSet):
         return Response({'message': 'Room deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
 
 
+
+class ActiveRoomTypeListView(generics.ListAPIView):
+    queryset = RoomType.objects.filter(is_active=True)
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = RoomTypeSerializer
+
+class ActiveBedTypeView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        active_bed_types = BedType.objects.filter(is_active=True)
+        serializer = BedTypeSerializer(active_bed_types, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+
+# for getting details of all rooom of a single property
 class RoomListByPropertyView(generics.ListAPIView):
     serializer_class = RoomListSerializer_Property
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
         return Rooms.objects.filter(property=property_id)
+
 #  =============================== PROPERTY LISTING BY HOST =============================
 class HostPropertyListView(generics.ListAPIView):
     serializer_class = PropertyViewSerializer
@@ -352,7 +406,6 @@ class HostPropertyListView(generics.ListAPIView):
         user = self.request.user
         print('hsotlistings view ',user)
         return Property.objects.filter(host=user)
-    
     
 
 # ====================================== ADMIN MANAGEMENT ==================================
@@ -383,7 +436,7 @@ def get_all_properties_basic_details(request):
 
 # ====================================== ADMIN MANAGEMENT ==================================
 # =============================== GET ALL DETIALS OF A SINGLE PROPERTY ==================================
-# for getting the all details of a single property in review for admin to review
+# for getting the ALL DETIALS OF A SINGLE PROPERTY in review for admin to review
 class PropertyDetailView(generics.RetrieveAPIView):
     queryset = Property.objects.all()
     serializer_class = PropertyDetailedViewSerializer
@@ -401,3 +454,22 @@ class PropertyDetailView(generics.RetrieveAPIView):
         self.check_object_permissions(request, property_instance)
         serializer = self.get_serializer(property_instance)
         return Response(serializer.data)
+    
+
+# ============================== USER SIDE PROPERTY DISPLAYS ======================================
+class PropertyResultView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request, *args, **kwargs):
+        city = request.query_params.get('city', None)
+        if city:
+            properties = Property.objects.filter(
+                city__iexact=city,
+                status='published'
+                )
+            serializer = PropertyViewSerializer(properties, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "City name not provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+

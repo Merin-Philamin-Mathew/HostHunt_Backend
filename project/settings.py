@@ -52,7 +52,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
-    'rest_framework_simplejwt.token_blacklist',  # Optional, for token blacklisting
+    'rest_framework_simplejwt.token_blacklist',  
     
     'authentication',
     'property',
@@ -61,10 +61,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',  # Should be on top
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',  # Ensure this is after corsheaders
+    'django.middleware.common.CommonMiddleware',  
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
@@ -72,8 +72,8 @@ MIDDLEWARE = [
 ]
 
 AUTHENTICATION_BACKENDS = [
-    'authentication.authenticate.CustomOwnerBackend', # for CustomOwner Table
-    'django.contrib.auth.backends.ModelBackend',  # Default backend for CustomUser
+    'authentication.authenticate.CustomOwnerBackend',
+    'django.contrib.auth.backends.ModelBackend',  
 ]
 
 

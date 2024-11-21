@@ -57,6 +57,9 @@ class Property(models.Model):
     property_type = models.CharField(max_length=10, choices=PROPERTY_TYPE_CHOICES)
     description = models.TextField(blank=True, null=True) #later
     address = models.CharField(max_length=255)
+    location = models.CharField(default='0', max_length=255)
+    lat = models.DecimalField(default=0, max_digits=25, decimal_places=20)
+    lng = models.DecimalField(default=0, max_digits=25, decimal_places=20)
     city = models.CharField(max_length=100)
     postcode = models.IntegerField()
     thumbnail_image_url =  models.URLField(max_length=500)
@@ -135,7 +138,7 @@ class PropertyAmenity(models.Model):
     free = models.BooleanField(default=True)
     
     def __str__(self):
-        return f"{self.amenity} - {self.status} ({self.property})"
+        return f"{self.amenity} - {self.free} ({self.property})"
 
 class PropertyDocument(models.Model):
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='documents')
@@ -184,7 +187,7 @@ class RentalApartment(models.Model):
 # Model for rooms in PGs and hostels
 class Rooms(models.Model):
     room_name = models.CharField(max_length=255)  # Format: type-occupancy-bed_type (auto-generated)
-    room_type = models.CharField(max_length=100)
+    room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name='room')
     is_private = models.BooleanField()  # True for private rooms, False for shared rooms
     description = models.TextField(blank=True, null=True)
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='rooms')
@@ -199,10 +202,10 @@ class Rooms(models.Model):
     booking_amount_choice = models.CharField(max_length=20, choices=BOOKING_AMOUNT_CHOICES)
     price_per_night = models.DecimalField(blank=True, null=True, max_digits=10, decimal_places=2)  # Price per bed or per room
     monthly_rent = models.DecimalField(blank=True, null=True, max_digits=10, decimal_places=2)  # Price per bed or per room
-    
-    bed_type = models.CharField(max_length=100)  # Bed or cot type, provided by the host
+    bed_type = models.ForeignKey(BedType, on_delete=models.CASCADE, related_name='rooms')  # Bed or cot type, provided by the host
     area = models.IntegerField()  # Room area in square feet
-    # room_thumbnail_image_url = models.URLField(max_length=255)
+    room_thumbnail_image_url = models.URLField(max_length=255)
+    facilities = models.ManyToManyField(RoomFacilities, related_name='rooms')
 
     def __str__(self):
         return f"Room - {self.room_name} in {self.property.property_name}"

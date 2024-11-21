@@ -1,9 +1,3 @@
-from rest_framework.views import APIView
-from rest_framework import  permissions
-from rest_framework.response import Response
-
-from property.models import Property
-# Create your views here.
 
 from rest_framework import permissions, status, generics
 from rest_framework.views import APIView
@@ -13,7 +7,7 @@ from .serializers import CustomUserSerializer,AmenitySerializer, RoomFacilitiesS
 
 from property.utils import CustomPagination
 
-from django.db.models import Q  # Import Q for complex queries
+from django.db.models import Q  
 
 # ================================ADMIN PROPERTY MANAGEMENT=========================================
 class AdminApproveOrRejectProperty(APIView):
@@ -45,8 +39,8 @@ class UserListView(generics.ListAPIView):
     pagination_class = CustomPagination
     def get_queryset(self):
         if 'owners' in self.request.path:
-            return CustomUser.objects.filter(is_owner=True)
-        return CustomUser.objects.all()
+            return CustomUser.objects.filter(is_owner=True).exclude(is_staff=True)
+        return CustomUser.objects.all().exclude(is_staff=True)
 
     def get(self, request, *args, **kwargs):
         self.pagination_class.page_size = 6  # or any other value you want to set

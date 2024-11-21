@@ -7,6 +7,7 @@ urlpatterns = [
     path('otp-verification/', VerifyOTP.as_view(),name='verify'),
     path('login/', LoginView.as_view(),name='login'),
     path('google-login/', GoogleLoginView.as_view(),name='google-login'),
+    path('token/refresh/', CustomTokenRefreshView.as_view(),name='token-refresh'),
     # path('api/token/owner/', CustomOwnerTokenView.as_view(), name='token_obtain_owner'),
 
 ]

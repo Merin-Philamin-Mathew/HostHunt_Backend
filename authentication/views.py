@@ -152,14 +152,10 @@ class LoginView(APIView):
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         if not user.check_password(password):
             return Response({"error": "Incorrect password"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        print('password correct')
         
         if user_type == 'admin' and not user.is_superuser:
             return Response({"error": "User is not an admin. Access denied."}, status=status.HTTP_403_FORBIDDEN)
         
-        refresh = RefreshToken.for_user(user)
-        print('user_type == user') 
         # if user_type == 'user':
         #     refresh = RefreshToken.for_user(user)
         #     print('user_type == user') 
@@ -167,24 +163,63 @@ class LoginView(APIView):
         #     refresh = CustomOwnerRefreshToken.for_owner(user)
         #     print('user_type = owner')
 
+        # Generate tokens
+        refresh = RefreshToken.for_user(user)
         refresh['role'] = role
         refresh['email'] = str(user.email)
         refresh['id'] = str(user.id)
         serializer = serializer(user)
 
-        content = {
-            'refresh': str(refresh),
+        response = Response({
             'access': str(refresh.access_token),
-            "data":serializer.data
-        }
-        print('content',content)
-        return Response(content, status=status.HTTP_200_OK)
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
+        response.set_cookie(
+            key='refresh_token',
+            value=str(refresh),
+            httponly=True,
+            secure=True,  # Use True in production
+            samesite='Lax',  # Adjust as needed (Lax, Strict, or None for cross-site requests)
+            max_age=7 * 24 * 60 * 60  # 7 days in seconds
+        )
+
+        return response
+    
+from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
+
+class CustomTokenRefreshView(TokenRefreshView):
+    print('custom refresh view')
+    def post(self, request, *args, **kwargs):
+        print('custom refresh viewooo')
+        refresh_token = request.COOKIES.get('refresh_token')
+        if not refresh_token:
+            return Response({"error": "Refresh token missing in cookies"}, status=400)
+        request.data['refresh'] = refresh_token
+        return super().post(request, *args, **kwargs)
+
+class RefreshTokenView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def post(self, request):
+        print('refresh token ')
+        refresh_token = request.COOKIES.get('refresh_token')
+        print('refresh token ',refresh_token)
+        
+        if not refresh_token:
+            return Response({"error": "Refresh token missing"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            refresh = RefreshToken(refresh_token)
+            access_token = refresh.access_token
+            return Response({'access': str(access_token)}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+
     
 class ForgotPassword(APIView):
     def post(self, request):
         pass
-
-    
 
 class GoogleLoginView(APIView):
     permission_classes = [permissions.AllowAny]

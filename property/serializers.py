@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Property,PropertyDocument,PropertyAmenity,RentalApartment,Rooms
+from .models import Property,PropertyDocument,PropertyAmenity,RentalApartment,Rooms, RoomType, BedType
 
 # serializers for adding the details in the owner side
 # ================verification process==================
@@ -14,6 +14,9 @@ class PropertySerializer(serializers.ModelSerializer):
             'city',
             'postcode',
             'address',
+            # 'location',
+            # 'lat',
+            # 'lng',
             'thumbnail_image_url',
             'total_bed_rooms',
             'no_of_beds',
@@ -110,8 +113,16 @@ class PropertyPoliciesSerializer(serializers.ModelSerializer):
 
         return data
 
+class PropertyAmenityCRUDSerializer(serializers.ModelSerializer):
+    amenity_id = serializers.IntegerField(source="amenity.id")
+    free = serializers.BooleanField(default=True)
 
+    class Meta:
+        model = PropertyAmenity
+        fields = ['amenity_id', 'free']
+        
 # ====================onboarding process===============
+# properyt/view/RentalApartmentCreateView
 class RentalApartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = RentalApartment
@@ -121,6 +132,7 @@ class RentalApartmentSerializer(serializers.ModelSerializer):
         # }
 
 
+# property/view/RoomViewSet crud of single room of a property
 class RoomSerializer(serializers.ModelSerializer):
     room_name = serializers.CharField(read_only=True)  
 
@@ -163,10 +175,14 @@ class RoomSerializer(serializers.ModelSerializer):
         return data
 
 # for getting rooms by property
+# used in property/view/RoomListSerializer_Property
 class RoomListSerializer_Property(serializers.ModelSerializer):
     class Meta:
         model = Rooms
         fields = ['id', 'room_name', 'booking_amount_choice','no_of_rooms'] 
+
+
+
 
 
 # serializer for admin management___ view -> get_all_properties
@@ -189,6 +205,7 @@ class PropertyViewSerializer(serializers.ModelSerializer):
             'is_listed',
         ]
 
+# for getting all the amenities of a property in the property detailed view
 class PropertyAmenitySerializer(serializers.ModelSerializer):
     amenity_name = serializers.CharField(source='amenity.amenity_name', read_only=True)
     property = serializers.PrimaryKeyRelatedField(read_only=True)  
@@ -196,6 +213,7 @@ class PropertyAmenitySerializer(serializers.ModelSerializer):
         model = PropertyAmenity
         fields = ['property', 'amenity_name', 'free']  
 
+# used in Property/view/PropertyDetailView
 class PropertyDetailedViewSerializer(serializers.ModelSerializer):
     host = serializers.EmailField(source='host.email', read_only=True)
     documents = PropertyDocumentSerializer(many=True, read_only=True) 
@@ -240,3 +258,19 @@ class PropertyDetailedViewSerializer(serializers.ModelSerializer):
             'documents',
             'property_amenities'  
         ]
+
+
+
+
+
+# extra datas 
+
+class RoomTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomType
+        fields = ['id', 'room_type_name', 'icon', 'is_active']
+
+class BedTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BedType
+        fields = ['id', 'bed_type_name', 'icon', 'is_active']

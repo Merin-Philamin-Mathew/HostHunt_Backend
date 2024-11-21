@@ -42,6 +42,7 @@ def Upload_to_s3(image_file,s3_file_path):
         s3.upload_fileobj(image_file, bucket_name, s3_file_path+image_file.name,
                         ExtraArgs={ 'ContentType': image_file.content_type})
         image_url = get_s3_file_url(image_file.name,s3_file_path)
+        print(image_url,'uploaded url')
         return image_url
     except Exception as e:
         print('3 error',e)
