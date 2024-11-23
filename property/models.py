@@ -27,6 +27,7 @@ class RoomFacilities(models.Model):
     def __str__(self):
         return self.facility_name
     
+    
 class RoomType(models.Model):
     room_type_name = models.CharField(unique=True,max_length=100)
     icon = models.CharField(max_length=100, null=True, blank=True) 
@@ -217,12 +218,4 @@ class RoomImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.room.room_name}"
-    
-class RoomFacility(models.Model):
-    facility_name = models.CharField(unique=True,max_length=100)
-
-    icon = models.CharField(max_length=100, null=True, blank=True) 
-    is_active = models.BooleanField(default=True) 
-    def __str__(self):
-        return self.facility_name
 

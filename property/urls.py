@@ -30,10 +30,10 @@ urlpatterns = [
     path('documents/<int:property_id>/', PropertyDocumentUploadView.as_view(), name='get_all_docs'),
     path('get-policies-services/<int:property_id>/', GetPoliciesServicesView.as_view(), name='get-policies-services'),
     
-
     path('property-results/', PropertyResultView.as_view(), name='property-list'),
 
     path('all-amenities/', AmenityListView.as_view(), name='list-all-property-amenities'),
+    path('active-room-facilities/', ActiveFacilityListView.as_view(), name='active-room-facilities'),
     path('active-room-types/', ActiveRoomTypeListView.as_view(), name='active-room-types'),
     path('active-bed-types/', ActiveBedTypeView.as_view(), name='active-bed-types'),
     # path('all-room-facilities/', AmenityListView.as_view(), name='list-all-property-amenities'),

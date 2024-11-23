@@ -8,10 +8,10 @@ from rest_framework.views import APIView
 from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
-from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType
+from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType,RoomFacilities
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer
+from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer,RoomFacilitySerializer
 from admin_management.serializers import AmenitySerializer
 
 from .utils import CustomPagination
@@ -333,25 +333,42 @@ class RentalApartmentCreateView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 # crud of single room of a property
 class RoomViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        print('room creation', request.data)
-        if 'property' not in request.data:
-            print('1')
-            return Response({'error': 'Property field is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        print('2')
+        print( 'room creation', request.data, 'request.data')
+        property_id = request.data['property']
+        room_images = request.FILES.getlist('room_images')
+        print('room_images',room_images)
+        print('property_id',property_id)
 
-        serializer = RoomSerializer(data=request.data)
-        if serializer.is_valid():
-            print('3',serializer)
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        property_instance = get_object_or_404(Property, id=property_id)
+        room_name = request.data['room_name']
+        uploaded_room_images = []
 
-        print(serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            for file in room_images:
+                print('1',file)
+                s3_file_path = f"room_images/{property_instance.host}/P{property_instance.id}-{room_name.replace(" ", "")}"
+                print(s3_file_path,'s3_file_path')
+                # image_url = Upload_to_s3(file, s3_file_path)
+                # print('image_url',image_url)
+        except Exception as e:
+            pass
+        
+        return Response({'message':'mon happy alle'},status=200)
+
+        # serializer = RoomSerializer(data=request.data)
+        # if serializer.is_valid():
+        #     print('3',serializer)
+        #     serializer.save()
+        #     return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        # print(serializer.errors)
+        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, room_id=None):
         try:
@@ -388,7 +405,11 @@ class ActiveBedTypeView(APIView):
         active_bed_types = BedType.objects.filter(is_active=True)
         serializer = BedTypeSerializer(active_bed_types, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
-    
+
+class ActiveFacilityListView(generics.ListAPIView):
+    queryset = RoomFacilities.objects.all().filter(is_active=True).order_by('id') 
+    serializer_class = RoomFacilitySerializer
+    permission_classes = [permissions.IsAuthenticated]
 
 # for getting details of all rooom of a single property
 class RoomListByPropertyView(generics.ListAPIView):
