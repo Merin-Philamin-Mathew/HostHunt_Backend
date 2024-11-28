@@ -8,14 +8,17 @@ from rest_framework.views import APIView
 from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
-from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType,RoomFacilities
+from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType,RoomFacilities, Bookings, BookingPayment
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer,RoomFacilitySerializer
+from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer,RoomFacilitySerializer,RoomImageSerializer
 from admin_management.serializers import AmenitySerializer
 
 from .utils import CustomPagination
 from .utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
+
+from django.http import HttpResponseRedirect
+import os, stripe
 
 
 
@@ -339,36 +342,53 @@ class RoomViewSet(viewsets.ViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        print( 'room creation', request.data, 'request.data')
+        data = request.data.copy()
+        print( 'room creation', data, 'request.data')
         property_id = request.data['property']
         room_images = request.FILES.getlist('room_images')
         print('room_images',room_images)
         print('property_id',property_id)
-
         property_instance = get_object_or_404(Property, id=property_id)
+
         room_name = request.data['room_name']
-        uploaded_room_images = []
+       
+        serializer = RoomSerializer(data=data)
+        if serializer.is_valid():
+            print('serializer valid',serializer)
+            room_instance = serializer.save()
+            uploaded_room_images = []
 
-        try:
-            for file in room_images:
-                print('1',file)
-                s3_file_path = f"room_images/{property_instance.host}/P{property_instance.id}-{room_name.replace(" ", "")}"
-                print(s3_file_path,'s3_file_path')
-                # image_url = Upload_to_s3(file, s3_file_path)
-                # print('image_url',image_url)
-        except Exception as e:
-            pass
-        
-        return Response({'message':'mon happy alle'},status=200)
+            try:
+                for file in room_images:
+                    print('1',file)
+                    s3_file_path = f"room_images/{property_instance.host}/P{property_instance.id}-{room_name.replace(" ", "")}"
+                    image_url = Upload_to_s3(file, s3_file_path)
+                    # image_url = "https://host-hunt.s3.eu-north-1.amazonaws.com/room_images/mrnmthw19@gmail.com/P43-18SingleCoatPrivateMixedDormitoryd3.3.webp"
+                    image_data = {
+                        'room':room_instance.id,
+                        'room_image_url':image_url
+                    }
+                    image_serializer = RoomImageSerializer(data=image_data)
+                    if image_serializer.is_valid():
+                        print('image serializer is valid')
+                        print('going to save image')
+                        image_serializer.save()
+                        print('saved images')
+                        saved_images = image_serializer.data
+                        print('serializer.data',saved_images)
+                    else:
+                        print(image_serializer.errors)
+                    uploaded_room_images.append(image_url)
+                data.setlist('room_images', uploaded_room_images)  # Update room_images in data
+                print('Updated data:', data)
 
-        # serializer = RoomSerializer(data=request.data)
-        # if serializer.is_valid():
-        #     print('3',serializer)
-        #     serializer.save()
-        #     return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-        # print(serializer.errors)
-        # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            except Exception as e:
+                print('image errors',e)
+                pass
+            
+            response_serializer = RoomListSerializer_Property(room_instance)
+            return Response(response_serializer.data, status=200)
+        return Response({'error':serializer.errors},status=400)
 
     def put(self, request, room_id=None):
         try:
@@ -417,6 +437,7 @@ class RoomListByPropertyView(generics.ListAPIView):
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
         return Rooms.objects.filter(property=property_id)
+    
 
 #  =============================== PROPERTY LISTING BY HOST =============================
 class HostPropertyListView(generics.ListAPIView):
@@ -427,8 +448,28 @@ class HostPropertyListView(generics.ListAPIView):
         user = self.request.user
         print('hsotlistings view ',user)
         return Property.objects.filter(host=user)
-    
 
+
+#  ======================================= USER SIDE MANAGEMENT =============================
+#  =============================== DETAILED ROOM DETAILS IN USER SIDE =============================
+  
+class PropertyDisplayView(APIView):
+    def get(self, request, property_id):
+        property_instance = get_object_or_404(Property, id=property_id)
+        
+        property_details = PropertySerializer(property_instance).data
+        policies_and_services = PropertyPoliciesSerializer(property_instance).data
+        amenities = PropertyAmenityCRUDSerializer(property_instance.property_amenities.all(), many=True).data
+        rooms = RoomSerializer(property_instance.rooms.all(), many=True).data
+        
+        # Combine the data into a single response
+        response_data = {
+            'property_details': property_details,
+            'policies_and_services': policies_and_services,
+            'amenities': amenities,
+            'rooms': rooms,
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
 # ====================================== ADMIN MANAGEMENT ==================================
 # =============================== GET ALL PROPERTY BASIC DETAILS ==================================
 
@@ -476,6 +517,24 @@ class PropertyDetailView(generics.RetrieveAPIView):
         serializer = self.get_serializer(property_instance)
         return Response(serializer.data)
     
+# class PublishedPropertyDetailView(generics.RetrieveAPIView):
+#     queryset = Property.objects.all()
+#     serializer_class = PublishedPropertyDetailViewSerializer
+#     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+#     def get_object(self):
+#         property_id = self.kwargs.get('property_id')
+#         try:
+#             return Property.objects.get(id=property_id)
+#         except Property.DoesNotExist:
+#             raise NotFound('Property not found.')
+
+#     def get(self, request, *args, **kwargs):
+#         property_instance = self.get_object()
+#         self.check_object_permissions(request, property_instance)
+#         serializer = self.get_serializer(property_instance)
+#         return Response(serializer.data)
+    
 
 # ============================== USER SIDE PROPERTY DISPLAYS ======================================
 class PropertyResultView(APIView):
@@ -493,4 +552,95 @@ class PropertyResultView(APIView):
             return Response({"error": "City name not provided"}, status=status.HTTP_400_BAD_REQUEST)
 
 
+
+from datetime import datetime
+
+class CreatePayment(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        print(request.body)
+        room_id = int(request.data.get('room_id'))
+
+        check_in_date_str = request.data.get('check_in_date')
+        check_in_date = datetime.strptime(check_in_date_str, '%Y-%m-%d').date()
+        room = Rooms.objects.get(id=room_id)
+        property_id = room.property.id
+        property = Property.objects.get(id=property_id)
+        image_url = property.thumbnail_image_url
+        booking_amount = room.monthly_rent
+
+        booking = Bookings.objects.create(
+            user=request.user,
+            host=room.property.host,  # Assuming the host is linked to the property
+            room=room,
+            property=property,
+            check_in_date=check_in_date,
+            booking_amount=booking_amount,
+            booking_image_url=image_url,
+            booking_status='pending'
+        )
+        booking_payment = BookingPayment.objects.create(
+            Booking=booking,
+            total_amount=booking_amount,
+            status='unPaid'
+        )
+        print(booking,booking_payment,'fslkfslk')
+        stripe.api_key = settings.STRIPE_SECRET_KEY  # Explicitly set the API key
+        try:
+            print(settings.STRIPE_SECRET_KEY, 'kkk')
+
+
+            image_url = image_url
+            line_items = [{
+                            'price_data': {
+                                'currency': 'inr',
+                                'unit_amount': int(booking_amount * 100),  # Convert to cents for Stripe
+                                'product_data': {
+                                    'name': 'HostHunt',
+                                    'description': 'A booking for your stay at HostHunt',  # Provide a description
+                                    'images': [image_url],  # Optional, but useful for the product display
+                                },
+                            },
+                            'quantity': 1,
+                        }]
+
+            print(line_items, 'lineee')
+            checkout_session = stripe.checkout.Session.create(
+                payment_method_types=['card'],
+                mode='payment',
+                line_items=line_items,
+                success_url=f"http://localhost:8000/property/payment-success/{booking.id}/",
+                # success_url=f"http://localhost:8000/payment-success/{order.id}/",
+                cancel_url=f"http://localhost:8000/payment-cancel/",
+                metadata={'order_id': 10},
+                # metadata={'order_id': order_id},
+            )
+
+            return Response({'id': checkout_session.id}, status=status.HTTP_200_OK)
+        # except Orders.DoesNotExist:
+        #     return Response({'error': 'Order not found.'}, status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            return Response({'error': str(e)}, status.HTTP_403_FORBIDDEN)
+        
+
+class PaymentSuccess(APIView):
+    permission_classes = []
+
+    def get(self, request, pk):
+        try:
+            booking = Bookings.objects.get(id=pk)
+            booking_payment = BookingPayment.objects.get(Booking=booking)
+
+            # You can update the payment status here if needed
+            booking_payment.status = 'paid'
+            booking_payment.save()
+
+            frontend_url = f"http://localhost:5173/trial-page/"
+            return HttpResponseRedirect(frontend_url)
+        
+        except Bookings.DoesNotExist:
+            return Response({'error': 'Booking not found'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 

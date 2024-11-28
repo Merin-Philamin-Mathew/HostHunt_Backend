@@ -36,9 +36,13 @@ urlpatterns = [
     path('active-room-facilities/', ActiveFacilityListView.as_view(), name='active-room-facilities'),
     path('active-room-types/', ActiveRoomTypeListView.as_view(), name='active-room-types'),
     path('active-bed-types/', ActiveBedTypeView.as_view(), name='active-bed-types'),
+# ====================USER RETRIEVING DATA FOR VIEWING==========================================
+    path('property-display-view/<int:property_id>/', PropertyDisplayView.as_view(), name='property-detail'),
     # path('all-room-facilities/', AmenityListView.as_view(), name='list-all-property-amenities'),
 # ====================ADMIN RETRIEVING DATA FOR VIEWING==========================================
     path('all-properties/', get_all_properties_basic_details, name='get_all_properties'),
     path('basic-details/<int:property_id>/', PropertyDetailView.as_view(), name='property-detail'),
 
+    path('create_payment/', CreatePayment.as_view(), name='property-detail'),
+    path('payment-success/<int:pk>/', PaymentSuccess.as_view(), name='property-detail'),
 ]

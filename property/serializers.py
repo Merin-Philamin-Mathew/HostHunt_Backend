@@ -136,10 +136,9 @@ class RentalApartmentSerializer(serializers.ModelSerializer):
 class RoomImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = RoomImage
-        fields = ['id', 'room_image_url']
+        fields = ['room', 'room_image_url']
 
 class RoomSerializer(serializers.ModelSerializer):
-    room_name = serializers.CharField(read_only=True)
     facilities = serializers.PrimaryKeyRelatedField(
         many=True, queryset=RoomFacilities.objects.all()
     )  # You can switch to another field like `slug` if needed.
@@ -153,25 +152,34 @@ class RoomSerializer(serializers.ModelSerializer):
             'monthly_rent', 'bed_type', 'area', 'facilities', 'room_images',
         ]
 
+    def validate(self, data):
+        if not data.get('price_per_night') and not data.get('monthly_rent'):
+            raise serializers.ValidationError("Either price per night or monthly rent must be provided.")
+        
+        room_name = data.get('room_name')
+        property_id = data.get('property')
+        room_id = self.instance.id if self.instance else None  # Get the current room ID if updating
+
+        if Rooms.objects.filter(
+            room_name=room_name,
+            property=property_id
+        ).exclude(id=room_id).exists():
+            raise serializers.ValidationError(
+                f"A room with the name '{room_name}' already exists in this property."
+            )
+        return data
+    
     def create(self, validated_data):
         facilities = validated_data.pop('facilities', [])
         room_images_data = validated_data.pop('room_images', [])
         
-        # Generate room_name
-        occupancy = validated_data.get('occupancy')
-        bed_type = validated_data.get('bed_type')
-        is_private = validated_data.get('is_private')
-        room_type = validated_data.get('room_type')
-        private_text = 'Private' if is_private else 'Shared'
-        room_name = f"{occupancy} {bed_type} {private_text} {room_type}"
-        validated_data['room_name'] = room_name
-
+       
         # Create room
         room = Rooms.objects.create(**validated_data)
 
         # Add facilities
-        room.facilities.set(facilities)
-
+        if facilities:
+            room.facilities.set(facilities)
         # Add room images
         for image_data in room_images_data:
             RoomImage.objects.create(room=room, **image_data)
@@ -182,14 +190,7 @@ class RoomSerializer(serializers.ModelSerializer):
         facilities = validated_data.pop('facilities', None)
         room_images_data = validated_data.pop('room_images', None)
 
-        # Update room name dynamically
-        occupancy = validated_data.get('occupancy', instance.occupancy)
-        bed_type = validated_data.get('bed_type', instance.bed_type)
-        is_private = validated_data.get('is_private', instance.is_private)
-        room_type = validated_data.get('room_type', instance.room_type)
-        private_text = 'Private' if is_private else 'Shared'
-        instance.room_name = f"{occupancy}-{bed_type}-{private_text}-{room_type}"
-
+      
         # Update room fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -203,14 +204,15 @@ class RoomSerializer(serializers.ModelSerializer):
         if room_images_data is not None:
             instance.room_images.all().delete()  # Clear existing images
             for image_data in room_images_data:
-                RoomImage.objects.create(room=instance, **image_data)
+                    RoomImage.objects.create(room=instance, **image_data)
 
         return instance
+    
 
-    def validate(self, data):
-        if not data.get('price_per_night') and not data.get('monthly_rent'):
-            raise serializers.ValidationError("Either price per night or monthly rent must be provided.")
-        return data
+class RoomFacilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RoomFacilities
+        fields = ['id', 'facility_name', 'icon']
 
 
 # for getting rooms by property
@@ -222,6 +224,27 @@ class RoomListSerializer_Property(serializers.ModelSerializer):
 
 
 
+class PublishedRoomDetailedSerializer_Property(serializers.ModelSerializer):
+    facilities = RoomFacilitySerializer(many=True, read_only=True)
+    room_images = RoomImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Rooms
+        fields = [
+            'id',
+            'room_name',
+            'room_type',
+            'is_private',
+            'description',
+            'occupancy',
+            'no_of_rooms',
+            'price_per_night',
+            'monthly_rent',
+            'bed_type',
+            'area',
+            'facilities',
+            'room_images',
+        ]
 
 
 # serializer for admin management___ view -> get_all_properties
@@ -298,10 +321,6 @@ class PropertyDetailedViewSerializer(serializers.ModelSerializer):
             'property_amenities'  
         ]
 
-
-
-
-
 # extra datas 
 
 class RoomTypeSerializer(serializers.ModelSerializer):
@@ -318,3 +337,4 @@ class  RoomFacilitySerializer (serializers.ModelSerializer):
     class Meta:
         model = RoomFacilities
         fields = ['id', 'facility_name', 'icon', 'is_active']
+

@@ -163,29 +163,29 @@ class PropertyImage(models.Model):
         return f"Property Image - {self.image_name} for {self.property.property_name}"
 
 class RentalApartment(models.Model):
-    property = models.OneToOneField(Property, on_delete=models.CASCADE, related_name='more_details_of_house')
-    buildup_area = models.IntegerField()
-    property_age = models.IntegerField()
-    monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
-    booking_amount = models.DecimalField(max_digits=10, decimal_places=2) #no free booking #should be greater than 0
-    available_from = models.DateTimeField()
-    floor_num = models.IntegerField()# The floor_num field represents the floor number on which the rental apartment is located. It indicates which level of the building the apartment is situated on. 
-    rooms = models.CharField(max_length=255)  # Comma-separated string mapping (e.g., 'kitchen,gym_room,hall')
-    water_supply = models.BooleanField(default=False)
-    gas_pipeline = models.BooleanField(default=False)
-    
-    FURNISHING_CHOICES = [
-        ('fully', 'Fully Furnished'),
-        ('semi', 'Semi Furnished'),
-        ('unfurnished', 'Unfurnished'),
-    ]
-    furnishing_status = models.CharField(max_length=20, choices=FURNISHING_CHOICES)
-    furnishings = models.CharField(max_length=255)  # Comma-separated string mapping (e.g., 'bed,fridge,AC')
+        property = models.OneToOneField(Property, on_delete=models.CASCADE, related_name='more_details_of_house')
+        buildup_area = models.IntegerField()
+        property_age = models.IntegerField()
+        monthly_rent = models.DecimalField(max_digits=10, decimal_places=2)
+        booking_amount = models.DecimalField(max_digits=10, decimal_places=2) #no free booking #should be greater than 0
+        available_from = models.DateTimeField()
+        floor_num = models.IntegerField()# The floor_num field represents the floor number on which the rental apartment is located. It indicates which level of the building the apartment is situated on. 
+        rooms = models.CharField(max_length=255)  # Comma-separated string mapping (e.g., 'kitchen,gym_room,hall')
+        water_supply = models.BooleanField(default=False)
+        gas_pipeline = models.BooleanField(default=False)
+        
+        FURNISHING_CHOICES = [
+            ('fully', 'Fully Furnished'),
+            ('semi', 'Semi Furnished'),
+            ('unfurnished', 'Unfurnished'),
+        ]
+        furnishing_status = models.CharField(max_length=20, choices=FURNISHING_CHOICES)
+        furnishings = models.CharField(max_length=255)  # Comma-separated string mapping (e.g., 'bed,fridge,AC')
 
-    def __str__(self):
-        return f"Rental Apartment - {self.property.property_name}"
+        def __str__(self):
+            return f"Rental Apartment - {self.property.property_name}"
 
-# Model for rooms in PGs and hostels
+    # Model for rooms in PGs and hostels
 class Rooms(models.Model):
     room_name = models.CharField(max_length=255)  # Format: type-occupancy-bed_type (auto-generated)
     room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name='room')
@@ -208,8 +208,12 @@ class Rooms(models.Model):
     room_thumbnail_image_url = models.URLField(max_length=255)
     facilities = models.ManyToManyField(RoomFacilities, related_name='rooms')
 
+    availablility = models.IntegerField(default=20, blank=True, null=True)
+
+
     def __str__(self):
         return f"Room - {self.room_name} in {self.property.property_name}"
+
 
 # Model for room images in PGs and hostels
 class RoomImage(models.Model):
@@ -218,4 +222,56 @@ class RoomImage(models.Model):
 
     def __str__(self):
         return f"Image for {self.room.room_name}"
+
+
+class Bookings(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='bookings')
+    host = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='client_bookings')
+    room = models.ForeignKey(Rooms, on_delete=models.DO_NOTHING, related_name='bookings', blank=True, null=True)
+    property = models.ForeignKey(Property, on_delete=models.DO_NOTHING, related_name='bookings', blank=True, null=True)
+    check_in_date = models.DateField()
+    booking_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    booking_image_url = models.URLField(max_length=500)
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('working', 'Working'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    booking_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    booking_date = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class BookingPayment(models.Model):
+    Booking = models.OneToOneField(Bookings, on_delete=models.CASCADE, related_name='order_payment')
+    total_amount = models.IntegerField(null=True, blank=True)
+    STATUS_CHOICES = [
+        ('unPaid', 'UnPaid'),
+        ('paid', 'Paid'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unPaid')
+    payment_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+# from django.db.models.signals import post_save, pre_delete
+# from django.dispatch import receiver 
+
+# @receiver(post_save, sender=Bookings)
+# def reduce_available_rooms(sender, instance, created, **kwargs):
+#     if created and instance.room:
+#         room = instance.room
+#         if room.available_rooms > 0:
+#             room.available_rooms -= 1
+#             room.save()
+#         else:
+#             raise ValueError("No rooms available for booking.")
+
+# @receiver(pre_delete, sender=Bookings)
+# def restore_available_rooms(sender, instance, **kwargs):
+#     if instance.room:
+#         room = instance.room
+#         room.available_rooms += 1
+#         room.save()
+
 
