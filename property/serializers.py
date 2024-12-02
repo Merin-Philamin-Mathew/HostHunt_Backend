@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Property,PropertyDocument,PropertyAmenity,RentalApartment,Rooms, RoomType, BedType, RoomFacilities, RoomImage
+from .models import Property,PropertyDocument,PropertyAmenity,RentalApartment,Rooms, RoomType, BedType, RoomFacilities, RoomImage, PropertyImage
 
 # serializers for adding the details in the owner side
 # ================verification process==================
@@ -149,7 +149,7 @@ class RoomSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'room_name', 'room_type', 'is_private', 'description', 'property',
             'occupancy', 'no_of_rooms', 'booking_amount_choice', 'price_per_night',
-            'monthly_rent', 'bed_type', 'area', 'facilities', 'room_images',
+            'monthly_rent', 'bed_type', 'area', 'facilities', 'room_images', 'available_rooms',
         ]
 
     def validate(self, data):
@@ -173,14 +173,20 @@ class RoomSerializer(serializers.ModelSerializer):
         facilities = validated_data.pop('facilities', [])
         room_images_data = validated_data.pop('room_images', [])
         
-       
-        # Create room
+        is_private = validated_data.get('is_private')
+        occupancy = validated_data.get('occupancy')
+        no_of_rooms = validated_data.get('no_of_rooms', 1)  # Default to 1 if not provided
+
+        if is_private:
+            validated_data['available_rooms'] = occupancy
+        else:
+            validated_data['available_rooms'] = occupancy * no_of_rooms
+        
         room = Rooms.objects.create(**validated_data)
 
-        # Add facilities
         if facilities:
             room.facilities.set(facilities)
-        # Add room images
+        
         for image_data in room_images_data:
             RoomImage.objects.create(room=room, **image_data)
 
@@ -223,7 +229,8 @@ class RoomListSerializer_Property(serializers.ModelSerializer):
         fields = ['id', 'room_name', 'booking_amount_choice','no_of_rooms'] 
 
 
-
+# used in the user display
+# can use in the fetching detiails in the onboarding room form when trying to edit
 class PublishedRoomDetailedSerializer_Property(serializers.ModelSerializer):
     facilities = RoomFacilitySerializer(many=True, read_only=True)
     room_images = RoomImageSerializer(many=True, read_only=True)
@@ -245,6 +252,14 @@ class PublishedRoomDetailedSerializer_Property(serializers.ModelSerializer):
             'facilities',
             'room_images',
         ]
+
+# onboarding crud
+class PropertyImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PropertyImage
+        fields = ['id', 'property', 'property_image_url', 'image_name']
+
+
 
 
 # serializer for admin management___ view -> get_all_properties
@@ -279,7 +294,8 @@ class PropertyAmenitySerializer(serializers.ModelSerializer):
 class PropertyDetailedViewSerializer(serializers.ModelSerializer):
     host = serializers.EmailField(source='host.email', read_only=True)
     documents = PropertyDocumentSerializer(many=True, read_only=True) 
-    property_amenities = PropertyAmenitySerializer(many=True, read_only=True)  
+    property_amenities = PropertyAmenitySerializer(many=True, read_only=True) 
+    property_images = PropertyImageSerializer(many=True, read_only = True)
     class Meta:
         model = Property
         fields = [
@@ -318,7 +334,8 @@ class PropertyDetailedViewSerializer(serializers.ModelSerializer):
             'cancellation_period',
             'caution_deposit',
             'documents',
-            'property_amenities'  
+            'property_amenities',
+            'property_images'
         ]
 
 # extra datas 

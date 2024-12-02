@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Property, Amenity, PropertyDocument, Rooms, RentalApartment,RoomFacilities, RoomType, BedType, PropertyAmenity, Bookings, BookingPayment
+from .models import Property, Amenity, PropertyDocument, Rooms, RentalApartment,RoomFacilities, RoomType, BedType, PropertyAmenity
 
 # Define an admin class for CustomOwner
 class PropertyAdmin(admin.ModelAdmin):
@@ -31,11 +31,6 @@ class BedTypeAdmin(admin.ModelAdmin):
 class PropertyAmenityAdmin(admin.ModelAdmin):
     list_display = [field.name for field in PropertyAmenity._meta.fields]
 
-class BookingAdmin(admin.ModelAdmin):
-    list_display = [field.name for field in Bookings._meta.fields]
-
-class BookingPaymentAdmin(admin.ModelAdmin):
-    list_display = [field.name for field in BookingPayment._meta.fields]
 
 admin.site.register(Property, PropertyAdmin)
 admin.site.register(PropertyDocument, ProDocAdmin)
@@ -46,6 +41,3 @@ admin.site.register(RoomFacilities, RoomFacilitiesAdmin)
 admin.site.register(RoomType, RoomTypeAdmin)
 admin.site.register(BedType, BedTypeAdmin)
 admin.site.register(PropertyAmenity, PropertyAmenityAdmin)
-admin.site.register(Bookings, BookingAdmin)
-admin.site.register(BookingPayment, BookingPaymentAdmin)
- 

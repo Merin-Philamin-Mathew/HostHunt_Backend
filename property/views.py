@@ -8,17 +8,18 @@ from rest_framework.views import APIView
 from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
-from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType,RoomFacilities, Bookings, BookingPayment
+from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType,RoomFacilities, PropertyImage
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer,RoomFacilitySerializer,RoomImageSerializer
+from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer,RoomFacilitySerializer,RoomImageSerializer, PropertyImageSerializer
 from admin_management.serializers import AmenitySerializer
 
 from .utils import CustomPagination
 from .utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
 
-from django.http import HttpResponseRedirect
-import os, stripe
+from django.db.models import Q  
+
+
 
 
 
@@ -112,7 +113,6 @@ class PropertyDocumentUploadView(APIView):
 
     def get(self, request, property_id, *args, **kwargs):
         try:
-            print('lllllll')
             documents = PropertyDocument.objects.filter(property_id=property_id)
             if not documents.exists():
                 return Response({"message": "No documents found for this property."}, status=status.HTTP_404_NOT_FOUND)
@@ -127,7 +127,6 @@ class PropertyDocumentUploadView(APIView):
         property_id = request.data.get('property_id')
         files = request.FILES.getlist('files')
         serializer = PropertyDocumentSerializer(data=request.data)
-        print(property_id,files)
 
         if not property_id:
             return Response({'error': 'Property ID is required!'}, status=status.HTTP_400_BAD_REQUEST)
@@ -140,33 +139,23 @@ class PropertyDocumentUploadView(APIView):
         uploaded_docs = []
         try:
             for file in files:
-                print('1',file)
                 s3_file_path = f"property_documents/{property_instance.host.id}/{property_instance.id}/"
-                print('2',s3_file_path)
                 doc_url = Upload_to_s3(file, s3_file_path)
-                print('3')
 
                 document_data = {
                     'property': property_instance.id,
                     'doc_url': doc_url,
                 }
-                print('4')
                 serializer = PropertyDocumentSerializer(data=document_data)
-
        
                 if serializer.is_valid():
-                    print('5')
                     document_instance = serializer.save()
-                    print('6')
                     uploaded_docs.append(serializer.data)
                 else:
                     # If there's an error with one document, roll back by deleting the uploaded files from S3
-                    print('7')
                     for uploaded_doc in uploaded_docs:
-                        print('8')
                         delete_file_from_s3_by_url(uploaded_doc['doc_url'])
                     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-            print('9')
 
             return Response({'documents': uploaded_docs}, status=status.HTTP_201_CREATED)
 
@@ -302,7 +291,7 @@ class ChangeStatus_Submit_Review(APIView):
         except Property.DoesNotExist:
             return Response({"error": "Property not found."}, status=404)
 
-
+# ============================ ONBOARDING DETAILS ===================================
 class RentalApartmentCreateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -411,8 +400,7 @@ class RoomViewSet(viewsets.ViewSet):
         room.delete()
         return Response({'message': 'Room deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
 
-
-
+#===== extra datas ======
 class ActiveRoomTypeListView(generics.ListAPIView):
     queryset = RoomType.objects.filter(is_active=True)
     permission_classes = [permissions.IsAuthenticated]
@@ -438,6 +426,99 @@ class RoomListByPropertyView(generics.ListAPIView):
         property_id = self.kwargs.get('property_id')
         return Rooms.objects.filter(property=property_id)
     
+# STEP1 ONBOARDING
+
+class PropertyImageViewSet(viewsets.ModelViewSet):
+    queryset = PropertyImage.objects.all()
+    serializer_class = PropertyImageSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        property_id = self.kwargs.get('property_id')
+        if property_id:
+            return PropertyImage.objects.filter(property_id=property_id)
+        return super().get_queryset()
+    
+    def list(self, request, *args, **kwargs):
+        property_id = kwargs.get('property_id')
+        if property_id:
+            queryset = PropertyImage.objects.filter(property_id=property_id)
+        else:
+            queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def create(self, request, *args, **kwargs):
+        # Extract property_id from URL kwargs
+        property_id = kwargs.get('property_id')
+        files = request.FILES.getlist('files')
+        print(request.data, files, property_id)
+         # Debugging print statements
+        print("Request Data:", dict(request.data))
+        print("Request FILES:", list(request.FILES.keys()))
+        print("Files count:", len(files))
+        print("Property ID:", property_id)
+
+        if not property_id:
+            return Response({'error': 'Property ID is required!'}, status=status.HTTP_400_BAD_REQUEST)
+        if not files:
+            return Response({'error': 'No files provided!'}, status=status.HTTP_400_BAD_REQUEST)
+
+        property_instance = get_object_or_404(Property, id=property_id)
+        uploaded_images = []
+
+        try:
+            for file in files:
+                # Upload to S3
+                s3_file_path = f"property_images/{property_instance.host.id}/{property_instance.id}/"
+                # image_url = Upload_to_s3(file, s3_file_path)
+                image_url = 'https://host-hunt.s3.eu-north-1.amazonaws.com/property_thumbnails/13/boys1.jpeg'
+                print(image_url)
+                # Save in DB
+                image_data = {
+                    'property': property_instance.id,
+                    'property_image_url': image_url,
+                    'image_name': file.name,
+                }
+                
+                
+                print('dfdsfsdo')
+                # Create a new serializer instance for each file
+                serializer = self.get_serializer(data=image_data)
+                print('fffffffffffo')
+                serializer.is_valid(raise_exception=True)
+                
+                print('oooodddddo')
+                # Perform create for each image
+                created_image = serializer.save()
+                print('ooooo')
+                uploaded_images.append(serializer.data)
+
+            return Response({'data_url': uploaded_images}, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            # Rollback uploaded files on error
+            print('ex-onedfjds',e)
+            for uploaded_image in uploaded_images:
+                print('lflflflf')
+                delete_file_from_s3_by_url(uploaded_image['property_image_url'])
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        except Exception as e:
+            # Rollback uploaded files on error
+            for uploaded_image in uploaded_images:
+                delete_file_from_s3_by_url(uploaded_image['property_image_url'])
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def destroy(self, request, *args, **kwargs):
+        """Delete an image from both S3 and the database."""
+        instance = self.get_object()
+        try:
+            # Delete from S3
+            delete_file_from_s3_by_url(instance.property_image_url)
+            self.perform_destroy(instance)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #  =============================== PROPERTY LISTING BY HOST =============================
 class HostPropertyListView(generics.ListAPIView):
@@ -446,8 +527,17 @@ class HostPropertyListView(generics.ListAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        print('hsotlistings view ',user)
-        return Property.objects.filter(host=user)
+        queryset =  Property.objects.filter(host=user)
+        search_term = self.request.query_params.get('search', None)  # Get the search term from query parameters
+        if search_term:
+            queryset = queryset.filter(
+                Q(property_type__icontains=search_term)  |
+                Q(property_name__icontains=search_term) |
+                Q(city__icontains=search_term)  |
+                Q(location__icontains=search_term)  |
+                Q(status__icontains=search_term)  
+            )
+        return queryset
 
 
 #  ======================================= USER SIDE MANAGEMENT =============================
@@ -550,97 +640,4 @@ class PropertyResultView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response({"error": "City name not provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-from datetime import datetime
-
-class CreatePayment(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        print(request.body)
-        room_id = int(request.data.get('room_id'))
-
-        check_in_date_str = request.data.get('check_in_date')
-        check_in_date = datetime.strptime(check_in_date_str, '%Y-%m-%d').date()
-        room = Rooms.objects.get(id=room_id)
-        property_id = room.property.id
-        property = Property.objects.get(id=property_id)
-        image_url = property.thumbnail_image_url
-        booking_amount = room.monthly_rent
-
-        booking = Bookings.objects.create(
-            user=request.user,
-            host=room.property.host,  # Assuming the host is linked to the property
-            room=room,
-            property=property,
-            check_in_date=check_in_date,
-            booking_amount=booking_amount,
-            booking_image_url=image_url,
-            booking_status='pending'
-        )
-        booking_payment = BookingPayment.objects.create(
-            Booking=booking,
-            total_amount=booking_amount,
-            status='unPaid'
-        )
-        print(booking,booking_payment,'fslkfslk')
-        stripe.api_key = settings.STRIPE_SECRET_KEY  # Explicitly set the API key
-        try:
-            print(settings.STRIPE_SECRET_KEY, 'kkk')
-
-
-            image_url = image_url
-            line_items = [{
-                            'price_data': {
-                                'currency': 'inr',
-                                'unit_amount': int(booking_amount * 100),  # Convert to cents for Stripe
-                                'product_data': {
-                                    'name': 'HostHunt',
-                                    'description': 'A booking for your stay at HostHunt',  # Provide a description
-                                    'images': [image_url],  # Optional, but useful for the product display
-                                },
-                            },
-                            'quantity': 1,
-                        }]
-
-            print(line_items, 'lineee')
-            checkout_session = stripe.checkout.Session.create(
-                payment_method_types=['card'],
-                mode='payment',
-                line_items=line_items,
-                success_url=f"http://localhost:8000/property/payment-success/{booking.id}/",
-                # success_url=f"http://localhost:8000/payment-success/{order.id}/",
-                cancel_url=f"http://localhost:8000/payment-cancel/",
-                metadata={'order_id': 10},
-                # metadata={'order_id': order_id},
-            )
-
-            return Response({'id': checkout_session.id}, status=status.HTTP_200_OK)
-        # except Orders.DoesNotExist:
-        #     return Response({'error': 'Order not found.'}, status.HTTP_403_FORBIDDEN)
-        except Exception as e:
-            return Response({'error': str(e)}, status.HTTP_403_FORBIDDEN)
-        
-
-class PaymentSuccess(APIView):
-    permission_classes = []
-
-    def get(self, request, pk):
-        try:
-            booking = Bookings.objects.get(id=pk)
-            booking_payment = BookingPayment.objects.get(Booking=booking)
-
-            # You can update the payment status here if needed
-            booking_payment.status = 'paid'
-            booking_payment.save()
-
-            frontend_url = f"http://localhost:5173/trial-page/"
-            return HttpResponseRedirect(frontend_url)
-        
-        except Bookings.DoesNotExist:
-            return Response({'error': 'Booking not found'}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
