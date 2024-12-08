@@ -12,9 +12,11 @@ class Bookings(models.Model):
     booking_image_url = models.URLField(max_length=500)
     STATUS_CHOICES = [
         ('pending', 'Pending'),
-        ('working', 'Working'),
-        ('completed', 'Completed'),
+        ('reserved', 'Reserved'),
+        ('checked_in', 'Cheched_In'),
+        ('checked_out', 'Checked_Out'),
         ('cancelled', 'Cancelled'),
+        ('refunded', 'Refunded'),
     ]
     booking_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     booking_date = models.DateTimeField(auto_now_add=True)
@@ -22,7 +24,7 @@ class Bookings(models.Model):
 
 
 class BookingPayment(models.Model):
-    Booking = models.OneToOneField(Bookings, on_delete=models.CASCADE, related_name='order_payment')
+    Booking = models.OneToOneField(Bookings, on_delete=models.CASCADE, related_name='booking_payment')
     total_amount = models.IntegerField(null=True, blank=True)
     STATUS_CHOICES = [
         ('unPaid', 'UnPaid'),

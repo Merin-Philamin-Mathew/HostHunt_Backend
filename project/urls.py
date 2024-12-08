@@ -28,6 +28,7 @@ urlpatterns = [
     path('auth/', include('authentication.urls')),
     path('property/', include('property.urls')),
     path('admin/',include('admin_management.urls')),
+    path('booking/',include('booking.urls')),
 ]
 
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

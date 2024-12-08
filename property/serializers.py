@@ -148,9 +148,14 @@ class RoomSerializer(serializers.ModelSerializer):
         model = Rooms
         fields = [
             'id', 'room_name', 'room_type', 'is_private', 'description', 'property',
-            'occupancy', 'no_of_rooms', 'booking_amount_choice', 'price_per_night',
+            'no_of_beds', 'no_of_rooms','booking_amount',
             'monthly_rent', 'bed_type', 'area', 'facilities', 'room_images', 'available_rooms',
         ]
+        # fields = [
+        #     'id', 'room_name', 'room_type', 'is_private', 'description', 'property',
+        #     'no_of_beds', 'no_of_rooms', 'booking_amount_choice', 'price_per_night',
+        #     'monthly_rent', 'bed_type', 'area', 'facilities', 'room_images', 'available_rooms',
+        # ]
 
     def validate(self, data):
         if not data.get('price_per_night') and not data.get('monthly_rent'):
@@ -174,13 +179,13 @@ class RoomSerializer(serializers.ModelSerializer):
         room_images_data = validated_data.pop('room_images', [])
         
         is_private = validated_data.get('is_private')
-        occupancy = validated_data.get('occupancy')
+        no_of_beds = validated_data.get('no_of_beds')
         no_of_rooms = validated_data.get('no_of_rooms', 1)  # Default to 1 if not provided
 
         if is_private:
-            validated_data['available_rooms'] = occupancy
+            validated_data['available_rooms'] = no_of_beds
         else:
-            validated_data['available_rooms'] = occupancy * no_of_rooms
+            validated_data['available_rooms'] = no_of_beds * no_of_rooms
         
         room = Rooms.objects.create(**validated_data)
 
@@ -221,12 +226,13 @@ class RoomFacilitySerializer(serializers.ModelSerializer):
         fields = ['id', 'facility_name', 'icon']
 
 
-# for getting rooms by property
+# for getting rooms by property - onboarding form
 # used in property/view/RoomListSerializer_Property
 class RoomListSerializer_Property(serializers.ModelSerializer):
+    room_images = RoomImageSerializer(many=True, read_only=True)
     class Meta:
         model = Rooms
-        fields = ['id', 'room_name', 'booking_amount_choice','no_of_rooms'] 
+        fields = ['id', 'room_name','no_of_rooms','room_images','monthly_rent'] 
 
 
 # used in the user display
@@ -243,7 +249,7 @@ class PublishedRoomDetailedSerializer_Property(serializers.ModelSerializer):
             'room_type',
             'is_private',
             'description',
-            'occupancy',
+            'no_of_beds',
             'no_of_rooms',
             'price_per_night',
             'monthly_rent',
@@ -258,7 +264,15 @@ class PropertyImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = PropertyImage
         fields = ['id', 'property', 'property_image_url', 'image_name']
+    def validate(self, data):
+        property = data.get('property')
+        property_image_url = data.get('property_image_url')
 
+        if PropertyImage.objects.filter(property=property, property_image_url=property_image_url).exists():
+            raise serializers.ValidationError(
+                "A property image with this property and image URL already exists."
+            )
+        return data
 
 
 

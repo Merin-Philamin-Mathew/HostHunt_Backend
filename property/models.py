@@ -185,31 +185,31 @@ class RentalApartment(models.Model):
     def __str__(self):
         return f"Rental Apartment - {self.property.property_name}"
 
-    # Model for rooms in PGs and hostels
+# Model for rooms in PGs and hostels
 class Rooms(models.Model):
-    room_name = models.CharField(max_length=255)  # Format: type-occupancy-bed_type (auto-generated)
+    room_name = models.CharField(max_length=255)  # Format: type-no_of_beds-bed_type (auto-generated)
     room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name='room')
     is_private = models.BooleanField()  # True for private rooms, False for shared rooms
     description = models.TextField(blank=True, null=True)
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='rooms')
     
     # important in case of booking // either price per night or monthly rent should be filled
-    occupancy = models.IntegerField()  # Number of beds in the room
+    no_of_beds = models.IntegerField()  # Number of beds in the room
     no_of_rooms = models.IntegerField()  # 
     BOOKING_AMOUNT_CHOICES = [
         ('price_per_night', 'Price per night'),
         ('monthly_rent', 'Monthly Rent'),
     ]
-    booking_amount_choice = models.CharField(max_length=20, choices=BOOKING_AMOUNT_CHOICES)
+    booking_amount_choice = models.CharField(max_length=20, choices=BOOKING_AMOUNT_CHOICES, default='monthly_rent')
     price_per_night = models.DecimalField(blank=True, null=True, max_digits=10, decimal_places=2)  # Price per bed or per room
     monthly_rent = models.DecimalField(blank=True, null=True, max_digits=10, decimal_places=2)  # Price per bed or per room
+    booking_amount = models.DecimalField(blank=True, null=True, max_digits=10, decimal_places=2)  # Price per bed or per room
     bed_type = models.ForeignKey(BedType, on_delete=models.CASCADE, related_name='rooms')  # Bed or cot type, provided by the host
-    area = models.IntegerField()  # Room area in square feet
-    room_thumbnail_image_url = models.URLField(max_length=255)
+    area = models.DecimalField(max_digits=5, decimal_places=2)  # Room area in square feet
+    room_thumbnail_image_url = models.URLField(blank=True, null=True, max_length=255)
     facilities = models.ManyToManyField(RoomFacilities, related_name='rooms')
 
     available_rooms = models.IntegerField( blank=True, null=True)
-
 
     def __str__(self):
         return f"Room - {self.room_name} in {self.property.property_name}"

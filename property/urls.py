@@ -12,12 +12,9 @@ update_delete_room = RoomViewSet.as_view({
 })
 
 # ViewSet action mappings
-create_get_property_images = PropertyImageViewSet.as_view({
+crud_property_images = PropertyImageViewSet.as_view({
     'post': 'create',
-    'get':'list'
-})
-update_delete_property_images = PropertyImageViewSet.as_view({
-    'put': 'put',
+    'get':'list',
     'delete': 'destroy',
 })
 
@@ -39,8 +36,7 @@ urlpatterns = [
     path('onboarding/rooms/<int:room_id>/', update_delete_room, name='update_delete_room'),
     path('property-rooms/<int:property_id>/', RoomListByPropertyView.as_view(), name='rooms_by_property'),
 
-    path('onboarding/property-images/', create_get_property_images),
-    path('onboarding/property-images/<int:property_id>/', create_get_property_images),
+    path('onboarding/property-images/<int:pk>/', crud_property_images),
 
     # ========================= RETRIEVING VIEWS =========================
     path('host-properties/', HostPropertyListView.as_view(), name='host_properties'),  # For request.user

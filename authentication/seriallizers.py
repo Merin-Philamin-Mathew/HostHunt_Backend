@@ -12,7 +12,7 @@ class OwnerSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
-        fields = ['name', 'email', 'is_superuser', 'is_active', 'password']
+        fields = ['id','name', 'email', 'is_superuser', 'is_active', 'password']
         
 
 class AdminUserSerializer(serializers.ModelSerializer):

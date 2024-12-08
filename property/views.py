@@ -332,7 +332,6 @@ class RoomViewSet(viewsets.ViewSet):
 
     def post(self, request):
         data = request.data.copy()
-        print( 'room creation', data, 'request.data')
         property_id = request.data['property']
         room_images = request.FILES.getlist('room_images')
         print('room_images',room_images)
@@ -394,6 +393,11 @@ class RoomViewSet(viewsets.ViewSet):
     def delete(self, request, room_id=None):
         try:
             room = Rooms.objects.get(pk=room_id)
+            print(room.no_of_rooms)
+            room_im = room.room_images.all()
+            for i in room_im:
+                print(i.room_image_url)
+                delete_file_from_s3_by_url(i.room_image_url)
         except Rooms.DoesNotExist:
             return Response({'error': 'Room not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -433,24 +437,36 @@ class PropertyImageViewSet(viewsets.ModelViewSet):
     serializer_class = PropertyImageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
-        property_id = self.kwargs.get('property_id')
-        if property_id:
-            return PropertyImage.objects.filter(property_id=property_id)
-        return super().get_queryset()
-    
+    # def get_queryset(self):
+    #     property_id = self.kwargs.get('pk')
+    #     if property_id:
+    #         return PropertyImage.objects.filter(property_id=property_id)
+    #     return super().get_queryset()
+
     def list(self, request, *args, **kwargs):
-        property_id = kwargs.get('property_id')
+        property_id = kwargs.get('pk')
         if property_id:
+            # Fetch property images and thumbnail
             queryset = PropertyImage.objects.filter(property_id=property_id)
+            property_instance = Property.objects.filter(id=property_id).first()
+            serializer = self.get_serializer(queryset, many=True)
+
+            # Prepare response data
+            response_data = {
+                "property_images": serializer.data,
+                "thumbnail_image_url": property_instance.thumbnail_image_url if property_instance else None,
+            }
         else:
             queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer = self.get_serializer(queryset, many=True)
+            response_data = serializer.data
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
 
     def create(self, request, *args, **kwargs):
         # Extract property_id from URL kwargs
-        property_id = kwargs.get('property_id')
+        property_id = kwargs.get('pk')
         files = request.FILES.getlist('files')
         print(request.data, files, property_id)
          # Debugging print statements
@@ -471,8 +487,8 @@ class PropertyImageViewSet(viewsets.ModelViewSet):
             for file in files:
                 # Upload to S3
                 s3_file_path = f"property_images/{property_instance.host.id}/{property_instance.id}/"
-                # image_url = Upload_to_s3(file, s3_file_path)
-                image_url = 'https://host-hunt.s3.eu-north-1.amazonaws.com/property_thumbnails/13/boys1.jpeg'
+                image_url = Upload_to_s3(file, s3_file_path)
+                # image_url = 'https://host-hunt.s3.eu-north-1.amazonaws.com/property_thumbnails/13/boys1.jpeg'
                 print(image_url)
                 # Save in DB
                 image_data = {
@@ -480,7 +496,7 @@ class PropertyImageViewSet(viewsets.ModelViewSet):
                     'property_image_url': image_url,
                     'image_name': file.name,
                 }
-                
+
                 
                 print('dfdsfsdo')
                 # Create a new serializer instance for each file
@@ -494,30 +510,44 @@ class PropertyImageViewSet(viewsets.ModelViewSet):
                 print('ooooo')
                 uploaded_images.append(serializer.data)
 
-            return Response({'data_url': uploaded_images}, status=status.HTTP_201_CREATED)
+            return Response({'data_url': uploaded_images, 'message':'Images successfully added!'}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             # Rollback uploaded files on error
-            print('ex-onedfjds',e)
-            for uploaded_image in uploaded_images:
-                print('lflflflf')
-                delete_file_from_s3_by_url(uploaded_image['property_image_url'])
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        except Exception as e:
-            # Rollback uploaded files on error
             for uploaded_image in uploaded_images:
                 delete_file_from_s3_by_url(uploaded_image['property_image_url'])
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            # Safely extract the error message
+            if hasattr(e, 'detail'):
+                if isinstance(e.detail, str):
+                    error_message = e.detail
+                elif isinstance(e.detail, list) and e.detail:
+                    error_message = e.detail[0]
+                elif isinstance(e.detail, dict):
+                    error_message = next(iter(e.detail.values()), 'An unknown error occurred')
+                else:
+                    error_message = str(e.detail)
+            else:
+                error_message = str(e)
+
+            print('Exception occurred:', error_message)  # Debugging log
+            return Response({'error': error_message}, status=status.HTTP_400_BAD_REQUEST)
 
     def destroy(self, request, *args, **kwargs):
-        """Delete an image from both S3 and the database."""
-        instance = self.get_object()
+        print('lllll')
+        image_id = kwargs.get('pk')
+        print(image_id,'image_id')
+        if image_id:
+            instance = PropertyImage.objects.get(id=image_id)
         try:
+            print('destroyihng the image', instance.property_image_url)
             # Delete from S3
-            delete_file_from_s3_by_url(instance.property_image_url)
-            self.perform_destroy(instance)
+            # delete_file_from_s3_by_url(instance.property_image_url)
+            # print('deleted from s3')
+            # self.perform_destroy(instance)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Exception as e:
+            print(e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 #  =============================== PROPERTY LISTING BY HOST =============================
@@ -551,13 +581,14 @@ class PropertyDisplayView(APIView):
         policies_and_services = PropertyPoliciesSerializer(property_instance).data
         amenities = PropertyAmenityCRUDSerializer(property_instance.property_amenities.all(), many=True).data
         rooms = RoomSerializer(property_instance.rooms.all(), many=True).data
-        
+        property_images = PropertyImageSerializer(property_instance.property_images.all(),many=True).data
         # Combine the data into a single response
         response_data = {
             'property_details': property_details,
             'policies_and_services': policies_and_services,
             'amenities': amenities,
             'rooms': rooms,
+            'property_images' : property_images
         }
         return Response(response_data, status=status.HTTP_200_OK)
 # ====================================== ADMIN MANAGEMENT ==================================
@@ -634,8 +665,11 @@ class PropertyResultView(APIView):
         if city:
             properties = Property.objects.filter(
                 city__iexact=city,
-                status='published'
+                status='published',
+                # is_listed = True
                 )
+            if request.user.is_authenticated:
+                properties = properties.exclude(host = request.user)
             serializer = PropertyViewSerializer(properties, many=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:

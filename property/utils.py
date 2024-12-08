@@ -1,4 +1,6 @@
-
+# ====================================================================================
+#                               PAGINATION CUSTOMIZATION
+# ====================================================================================
 from rest_framework.pagination import PageNumberPagination
 
 class CustomPagination(PageNumberPagination):
@@ -10,6 +12,10 @@ class CustomPagination(PageNumberPagination):
         if hasattr(self, 'custom_page_size'):
             return self.custom_page_size
         return super().get_page_size(request)
+    
+# ====================================================================================
+#                               S3 BUCKET CONFIGURATION
+# ====================================================================================
 
 import boto3
 import urllib.parse
@@ -87,4 +93,4 @@ def delete_file_from_s3_by_url(url):
     except Exception as e:
         print('Error while deleting the file:', e)
         return False
-
+    

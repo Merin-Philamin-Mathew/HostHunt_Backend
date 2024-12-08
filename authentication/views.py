@@ -102,21 +102,15 @@ class VerifyOTP(APIView):
         if getotp == int(otp):
             print('2')
             if user_type == 'user':
-                print('ksdfhnsdkl')
                 model = CustomUser
             else:
-                print("dfsdfsdfdsfsdfd///////////")
                 model = CustomOwner
 
-        
-
-            user = model.objects.create_user(
+                user = model.objects.create_user(
                 name=registration_data['name'],
                 email=registration_data['email'],
                 password=registration_data['password'],
             )
-
-            print(model,'.......................................')
 
             return Response({'message': 'User created successfully.'}, status=status.HTTP_201_CREATED)
         else:
@@ -174,6 +168,7 @@ class LoginView(APIView):
             'access': str(refresh.access_token),
             "data": serializer.data
         }, status=status.HTTP_200_OK)
+        print(serializer.data,'fkldsjfldslfjdsl')
 
         response.set_cookie(
             key='refresh_token',
@@ -183,7 +178,6 @@ class LoginView(APIView):
             samesite='Lax',  # Adjust as needed (Lax, Strict, or None for cross-site requests)
             max_age=7 * 24 * 60 * 60  # 7 days in seconds
         )
-
         return response
     
 from rest_framework_simplejwt.views import TokenRefreshView
