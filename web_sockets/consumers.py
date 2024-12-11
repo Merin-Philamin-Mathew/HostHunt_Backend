@@ -1,4 +1,3 @@
-import logging
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from .utils import get_notifications_from_redis
@@ -42,14 +41,15 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             notifications = get_notifications_from_redis(self.user_id)
             print('notifications in the connect view', notifications)
 
-            # Send historical notifications to the WebSocket
-            for notification in notifications:
-                print('notifictian in the loop', notification)
-                await self.send(text_data=json.dumps(notification))
+            # # Send historical notifications to the WebSocket
+            # for notification in notifications:
+            #     print('notifictian in the loop', notification)
+            #     await self.send(text_data=json.dumps(notification))
+            await self.send(text_data=json.dumps(notifications))
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.room_name, self.channel_name)
 
     async def send_notification(self, event):
-        message = event['message']
-        await self.send(text_data=json.dumps({'message': message}))
+        pushmessage = event['message']
+        await self.send(text_data=json.dumps({'pushmessage': pushmessage}))
