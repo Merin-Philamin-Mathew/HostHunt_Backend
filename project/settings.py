@@ -14,6 +14,8 @@ from pathlib import Path
 import os
 import environ
 from datetime import timedelta # import this library top of the settings.py file
+from celery.schedules import crontab
+from celery import Celery
 
 
 # Initialise environment variables
@@ -60,6 +62,10 @@ INSTALLED_APPS = [
     'booking',
 
     'channels',
+    'django_celery_beat',
+    'django_extensions',
+
+
 
 ]
 ASGI_APPLICATION = 'project.asgi.application'
@@ -102,8 +108,9 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(days=30),
-    
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=20),  # Adjust this value as per your requirement
+
     "ROTATE_REFRESH_TOKENS": False,
     "BLACKLIST_AFTER_ROTATION": False,
     "UPDATE_LAST_LOGIN": False,
@@ -188,7 +195,7 @@ ROOT_URLCONF = 'project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / "templates"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -295,3 +302,22 @@ AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
 MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
 
 STRIPE_SECRET_KEY  = env('STRIPE_SECRET_KEY')
+
+
+# CELERY CONFIGURATION
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # URL for Redis
+CELERY_ACCEPT_CONTENT = ['json']  # Task serialization format
+CELERY_TASK_SERIALIZER = 'json'   # Serialization format for tasks
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Backend for storing task results
+CELERY_TIMEZONE = 'UTC'  # Use your desired timezone
+
+CELERY_BEAT_SCHEDULE = {
+    'send-rent-notifications': {
+        'task': 'booking.tasks.send_rent_notifications',
+        'schedule': crontab(minute='*/1'),
+    },
+
+}
+
+# # Optional: Task result expiration (in seconds)
+# CELERY_TASK_RESULT_EXPIRES = 3600

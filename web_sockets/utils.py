@@ -60,7 +60,8 @@ def send_user_notification(user_id, message, type, senderId=None):
         {
             'type': 'send_notification',
             'message': message,
-            'notification_type': type
+            'notification_type': type,
+            'timestamp': str(datetime.now())
         }
     )
   

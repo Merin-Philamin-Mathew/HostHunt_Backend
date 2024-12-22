@@ -1,8 +1,10 @@
+import uuid
 from django.db import models
 
 # Create your models here.
 
 class Bookings(models.Model):
+    # id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey('authentication.CustomUser', on_delete=models.CASCADE, related_name='bookings')
     host = models.ForeignKey('authentication.CustomUser', on_delete=models.CASCADE, related_name='client_bookings')
     room = models.ForeignKey('property.Rooms', on_delete=models.DO_NOTHING, related_name='bookings', blank=True, null=True)
@@ -19,6 +21,7 @@ class Bookings(models.Model):
         ('cancelled', 'Cancelled'),
         ('refunded', 'Refunded'),
     ]
+    is_rent = models.BooleanField(default=False) 
     booking_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     booking_date = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -35,24 +38,55 @@ class BookingPayment(models.Model):
     payment_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-# from django.db.models.signals import post_save, pre_delete
-# from django.dispatch import receiver 
+class Rent(models.Model):
+    booking = models.ForeignKey(Bookings, on_delete=models.CASCADE, related_name='rents')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    due_date = models.DateField()  # Owner-defined due date (e.g., 1st of every month)
+    notification_period = models.IntegerField(default=3)  # Notify 3 days before
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('paid', 'Paid'),
+        ('overdue', 'Overdue'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    rent_method = models.CharField(
+        max_length=20, 
+        choices=[('notificationsOnly', 'Notification Only'), ('rentThroughHostHunt', 'Rent Through HostHunt')],
+        default='notificationsOnly'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-# @receiver(post_save, sender=Bookings)
-# def reduce_available_rooms(sender, instance, created, **kwargs):
-#     if created and instance.room:
-#         room = instance.room
-#         if room.available_rooms > 0:
-#             room.available_rooms -= 1
-#             room.save()
-#         else:
-#             raise ValueError("No rooms available for booking.")
+class BookingReview(models.Model):
+    booking = models.OneToOneField(Bookings, on_delete=models.CASCADE, related_name='review')
+    user = models.ForeignKey('authentication.CustomUser', on_delete=models.CASCADE, related_name='user_reviews')
+    host = models.ForeignKey('authentication.CustomUser', on_delete=models.CASCADE, related_name='host_reviews')
+    property = models.ForeignKey('property.Property', on_delete=models.CASCADE, related_name='property_reviews')
+    cleanliness = models.FloatField(default=0, help_text="Rating for cleanliness (0-5)")
+    accuracy = models.FloatField(default=0, help_text="Rating for accuracy (0-5)")
+    check_in = models.FloatField(default=0, help_text="Rating for check-in experience (0-5)")
+    communication = models.FloatField(default=0, help_text="Rating for communication (0-5)")
+    location = models.FloatField(default=0, help_text="Rating for location (0-5)")
+    value = models.FloatField(default=0, help_text="Rating for value (0-5)")
+    overall_rating = models.FloatField(default=0, help_text="Overall rating (calculated)")
+    review_text = models.TextField(blank=True, null=True, help_text="Optional review text")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-# @receiver(pre_delete, sender=Bookings)
-# def restore_available_rooms(sender, instance, **kwargs):
-#     if instance.room:
-#         room = instance.room
-#         room.available_rooms += 1
-#         room.save()
 
+
+    def __str__(self):
+        return f"Review for Booking {self.booking.id} by {self.user.name}"
+
+class ReviewLikeDislike(models.Model):
+    review = models.ForeignKey(BookingReview, on_delete=models.CASCADE, related_name='likes_dislikes')
+    user = models.ForeignKey('authentication.CustomUser', on_delete=models.CASCADE)
+    liked = models.BooleanField(default=True, help_text="True if the user liked the review")
+
+    class Meta:
+        unique_together = ('review', 'user')
+
+    def __str__(self):
+        action = "Liked" if self.liked else "Disliked"
+        return f"{self.user.name} {action} Review {self.review.id}"
 

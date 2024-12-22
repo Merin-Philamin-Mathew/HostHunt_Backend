@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    .email-container {
+      max-width: 600px;
+      margin: auto;
+      background: #ffffff;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .header {
+      background: #4CAF50;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      font-size: 24px;
+    }
+    .content {
+      padding: 20px;
+      color: #333333;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      margin: 20px 0;
+      background: #4CAF50;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      font-size: 16px;
+    }
+    .footer {
+      background: #f4f4f4;
+      text-align: center;
+      padding: 10px;
+      font-size: 14px;
+      color: #555555;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <div class="header">
+      Rent Payment Reminder
+    </div>
+    <div class="content">
+        <p>Dear {{ user_name }},</p>
+    <p>This is a reminder that your rent payment of <strong>Rs {{ amount }}</strong> is due on <strong>{{ due_date }}</strong>.</p>
+    <p>Please ensure timely payment to avoid penalties.</p>
+      <p>If you have any questions or concerns, feel free to contact us at <a href="mailto:support@example.com">support@example.com</a>.</p>
+      <p>Thank you for choosing our service!</p>
+    </div>
+    <div class="footer">
+      &copy; 2024 RentEasy. All rights reserved.
+    </div>
+  </div>
+</body>
+</html>

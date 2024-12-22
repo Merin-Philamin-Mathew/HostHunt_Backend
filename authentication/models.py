@@ -104,14 +104,33 @@ class UserProfile(models.Model):
     )
 
     user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    profile_pic =  models.URLField(max_length=500, null=True, blank=True)
     phone_number = models.CharField(max_length=15, blank=False) 
     date_of_birth = models.DateField(blank=True, null=True)  
-    identity_card = models.CharField(max_length=50,null=True, blank=True) 
-    identity_proof_number = models.CharField(max_length=100, null=True, blank=True) 
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)  
     about_me = models.TextField(blank=True)  
-    description_as_host = models.TextField(blank=True, null=True) #only display if redirecting from property_publishing page
+    description_as_host = models.TextField(blank=True, null=True) 
     address = models.TextField(blank=False) 
 
     def __str__(self):
         return f"{self.user.username}'s profile"
+    
+class IdentityVerification(models.Model):
+    IDENTITY_CARD_CHOICES = (
+    ('passport', 'Passport'),
+    ('pan', 'PAN Card'),
+    ('driving_license', 'Driving License'),
+    ('voter_id', 'Voter ID'),
+    ('social_security', 'Social Security Card'),
+    ('national_id', 'National ID'),
+    ('residence_permit', 'Residence Permit'),
+    ('identity_card', 'Identity Card'),
+)
+
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
+    identity_card = models.CharField(max_length=50,null=True, blank=True) 
+    identity_proof_number = models.CharField( choices=IDENTITY_CARD_CHOICES, max_length=100, null=True, blank=True) 
+    identity_card_front_img_url =  models.URLField(max_length=500)
+    identity_card_back_img_url =  models.URLField(max_length=500)
+
+

@@ -9,11 +9,11 @@ from .seriallizers import OwnerSerializer, UserSerializer, AdminUserSerializer
 
 import random
 from django.conf import settings
-from django.core.mail import send_mail
-
-# Create your views here.
     
 from rest_framework_simplejwt.views import TokenObtainPairView
+
+from .tasks import send_email_task
+
 
 # class CustomOwnerTokenView(TokenObtainPairView):
 #     def post(self, request, *args, **kwargs):
@@ -28,7 +28,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 #     def for_owner(cls, owner):
 #         token = cls()
 #         return token
-     
+
 class RegisterUser(APIView):
     permission_classes = [permissions.AllowAny]
 
@@ -44,16 +44,16 @@ class RegisterUser(APIView):
             model = CustomUser
             serializer = UserSerializer(data=data)
 
-        print(model,serializer,"..........................")
+        print(model, serializer, "..........................")
         if model.objects.filter(email=data.get('email')).exists():
             return Response({'email': 'This email already exists.'})
 
-       
         if serializer.is_valid():
             # Generate OTP
             otp = random.randint(100000, 999999)
-            self.send_otp(data['email'], otp) 
+            self.send_otp(data['email'], otp)
 
+            print('otp set going to register')
             registration_data = {
                 'name': data['name'],
                 'email': data['email'],
@@ -64,20 +64,17 @@ class RegisterUser(APIView):
             getotp = request.session.get('otp')
             print(getotp)
 
-            return Response({'message': 'OTP sent to your email.','data':registration_data,}, status=status.HTTP_200_OK)
+            return Response({'message': 'OTP sent to your email.', 'data': registration_data}, status=status.HTTP_200_OK)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
+
     def send_otp(self, email, otp):
-        print(otp   )
         subject = 'Your OTP Code for Verification'
         message = f'Your OTP code is {otp}. Please use this to verify your email.'
-        email_from = settings.EMAIL_HOST_USER
         recipient_list = [email]
-        
-        # Send email
-        send_mail(subject, message, email_from, recipient_list)
 
+        # Send email using Celery task
+        send_email_task.delay(subject, message, recipient_list)
 
 
 class VerifyOTP(APIView):
@@ -104,12 +101,13 @@ class VerifyOTP(APIView):
             if user_type == 'user':
                 model = CustomUser
             else:
+                print('registering the user')
                 model = CustomOwner
 
-                user = model.objects.create_user(
-                name=registration_data['name'],
-                email=registration_data['email'],
-                password=registration_data['password'],
+            user = model.objects.create_user(
+            name=registration_data['name'],
+            email=registration_data['email'],
+            password=registration_data['password'],
             )
 
             return Response({'message': 'User created successfully.'}, status=status.HTTP_201_CREATED)
@@ -188,27 +186,28 @@ class CustomTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
         print('custom refresh viewooo')
         refresh_token = request.COOKIES.get('refresh_token')
+        print('refresh_token',refresh_token, request.data)
         if not refresh_token:
             return Response({"error": "Refresh token missing in cookies"}, status=400)
         request.data['refresh'] = refresh_token
         return super().post(request, *args, **kwargs)
 
-class RefreshTokenView(APIView):
-    permission_classes = [permissions.AllowAny]
-    def post(self, request):
-        print('refresh token ')
-        refresh_token = request.COOKIES.get('refresh_token')
-        print('refresh token ',refresh_token)
+# class RefreshTokenView(APIView):
+#     permission_classes = [permissions.AllowAny]
+#     def post(self, request):
+#         print('refresh token ')
+#         refresh_token = request.COOKIES.get('refresh_token')
+#         print('refresh token ',refresh_token)
         
-        if not refresh_token:
-            return Response({"error": "Refresh token missing"}, status=status.HTTP_400_BAD_REQUEST)
+#         if not refresh_token:
+#             return Response({"error": "Refresh token missing"}, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            refresh = RefreshToken(refresh_token)
-            access_token = refresh.access_token
-            return Response({'access': str(access_token)}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
+#         try:
+#             refresh = RefreshToken(refresh_token)
+#             access_token = refresh.access_token
+#             return Response({'access': str(access_token)}, status=status.HTTP_200_OK)
+#         except Exception as e:
+#             return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
 
     
 class ForgotPassword(APIView):
