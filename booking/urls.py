@@ -4,18 +4,18 @@ from .views import *
 urlpatterns = [
 # ======================BOOKING==================================
     path('create_payment/', CreatePayment.as_view()),
-    path('payment-success/<int:pk>/', PaymentSuccess.as_view()),
+    path('payment-success/<str:pk>/', PaymentSuccess.as_view()),
 
 # get booking details by id
-    path('booking-details/<int:booking_id>/', BookingDetailsView.as_view(), name='booking-details'),
+    path('booking-details/<str:booking_id>/', BookingDetailsView.as_view(), name='booking-details'),
 
-    path('update-status/<int:booking_id>/', UpdateBookingStatusView.as_view(), name='update-booking-status'),
+    path('update-status/<str:booking_id>/', UpdateBookingStatusView.as_view(), name='update-booking-status'),
 
 # =====================RENT MANAGEMENT=====================================
-    path('rents/upcoming/<int:booking_id>/', GetUpcomingRentView.as_view(), name='get-upcoming-rent'),
+    path('rents/upcoming/<str:booking_id>/', GetUpcomingRentView.as_view(), name='get-upcoming-rent'),
     path('create_rent_payment/', Create_RentPayment.as_view()),
-    path('rent_payment_success/<int:pk>/', RentPaymentSuccess.as_view()),
-    path('rents/paid-overdue/<int:booking_id>/', PaidAndOverdueRentsView.as_view(), name='paid-overdue-rents'),
+    path('rent_payment_success/<str:pk>/', RentPaymentSuccess.as_view()),
+    path('rents/paid-overdue/<str:booking_id>/', PaidAndOverdueRentsView.as_view(), name='paid-overdue-rents'),
 
 
 # =====================USER MANAGEMENT=====================================
@@ -32,5 +32,14 @@ urlpatterns = [
     # Retrieve a Specific Review : GET
     # Update a Review : PUT         
     # Delete a Review : DELETE
+    # used in account page
     path('reviews/<int:pk>/', BookingReviewDetailView.as_view(), name='reviews-detail'),
+    # reviews viewing for all
+    path('all-reviews/', BookingReviewListPublicView.as_view(), name='reviews-detail'),
+
+# =================================== DASHBOARD =========================================
+    path("booking-data/", BookingDataView.as_view()),
+    path("summary/", DashboardSummaryAPIView.as_view()),
+
+
 ]

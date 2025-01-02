@@ -3,11 +3,11 @@ from .models import CustomOwner, CustomUser
 
 # Define an admin class for CustomOwner
 class CustomOwnerAdmin(admin.ModelAdmin):
-    list_display = ["name", "email"]
+    list_display = ["name", "email", "id"]
 
 # Define an admin class for CustomUser
 class CustomUserAdmin(admin.ModelAdmin):
-    list_display = ["name", "email"]
+    list_display = ["name", "email", "id"]
 
 # Register the models with their respective admin classes
 admin.site.register(CustomOwner, CustomOwnerAdmin)

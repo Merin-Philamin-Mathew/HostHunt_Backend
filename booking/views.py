@@ -5,6 +5,8 @@ from rest_framework import permissions,status,generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.pagination import PageNumberPagination
+
 
 from django.http import HttpResponseRedirect
 from django.utils.timezone import now
@@ -19,6 +21,7 @@ from asgiref.sync import async_to_sync
 
 from datetime import datetime, timedelta
 from django.utils.timezone import make_aware
+
 
 
 
@@ -52,10 +55,8 @@ class CreatePayment(APIView):
             total_amount=booking_amount,
             status='unPaid'
         )
-        print(booking,booking_payment,'fslkfslk')
         stripe.api_key = settings.STRIPE_SECRET_KEY  # Explicitly set the API key
         try:
-            print(settings.STRIPE_SECRET_KEY, 'kkk')
 
 
             image_url = image_url
@@ -95,7 +96,7 @@ class PaymentSuccess(APIView):
             booking = Bookings.objects.get(id=pk)
             booking_payment = BookingPayment.objects.get(Booking=booking)
 
-            booking.booking_status = 'confirmed'
+            booking.booking_status = 'reserved'
             booking.save()
             room = booking.room  
        
@@ -195,13 +196,20 @@ class BookingDetailsView(APIView):
             )
          
 
+# =========================== HOST MANAGEMENT ==================================
 class HostBookingsView(APIView):
     permission_classes = [permissions.IsAuthenticated]  # Ensures the user is authenticated
 
     def get(self, request):
         user = request.user
         print(user)
-        bookings = Bookings.objects.filter(host=user).order_by('-id').select_related('property', 'room')
+        bookings = (
+            Bookings.objects
+            .filter(host=user)
+            .exclude(booking_status='pending')
+            .order_by('-id')
+            .select_related('property', 'room')
+        )
         data = []
 
         for booking in bookings:
@@ -284,7 +292,13 @@ class UserBookingsView(APIView):
     def get(self, request):
         user = request.user
         print(user)
-        bookings = Bookings.objects.filter(user=user).order_by('-id').select_related('property', 'room')
+        bookings = (
+            Bookings.objects
+            .filter(user=user)            
+            .exclude(booking_status='pending')
+            .order_by('-id')
+            .select_related('property', 'room')
+        )
         data = []
 
         for booking in bookings:
@@ -307,6 +321,7 @@ class UserBookingsView(APIView):
 
         return Response(data, status=200)
 
+# creating and viewing and editing single reviews by booking_id if id is passed through the url
 class BookingReviewListCreateView(generics.ListCreateAPIView):
  
     serializer_class = BookingReviewSerializer
@@ -317,6 +332,72 @@ class BookingReviewListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save()
+
+# publicly viewing reviews
+class ReviewPagination(PageNumberPagination):
+    page_size = 3  # Default number of reviews per page
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+    def get_page_size(self, request):
+        """
+        Validate and retrieve the page size from the query parameters.
+        If not provided, fall back to the default value.
+        """
+        page_size = request.query_params.get(self.page_size_query_param)
+        if page_size is not None:
+            try:
+                page_size = int(page_size)
+                if page_size > self.max_page_size:
+                    page_size = self.max_page_size
+                elif page_size < 1:
+                    page_size = self.page_size  # Fallback to default if invalid
+            except ValueError:
+                page_size = self.page_size  # Fallback to default if invalid
+        else:
+            page_size = self.page_size  # Default page size if not provided
+
+        return page_size
+
+
+class BookingReviewListPublicView(generics.ListAPIView):
+    queryset = BookingReview.objects.all().order_by('-created_at')  # Latest reviews first
+    serializer_class = BookingReviewSerializer
+    permission_classes = [permissions.AllowAny]  # Adjust based on your security needs
+    pagination_class = ReviewPagination
+
+    def get_queryset(self):
+        """
+        Optionally filter reviews by property, host, or user.
+        Query parameters:
+        - `property_id`: ID of the property
+        - `host_id`: ID of the host
+        - `user_id`: ID of the reviewer
+        - `page_size`: Number of reviews per page (mandatory)
+        """
+        queryset = super().get_queryset()
+
+        # Retrieve query parameters
+        property_id = self.request.query_params.get('property_id')
+        host_id = self.request.query_params.get('host_id')
+        user_id = self.request.query_params.get('user_id')
+        page_size = self.request.query_params.get('page_size')
+
+        # Ensure page_size is provided
+        if not page_size:
+            raise ValidationError({
+                "error": "The 'page_size' query parameter is required."
+            })
+
+        # Apply filters
+        if property_id:
+            queryset = queryset.filter(property_id=property_id)
+        if host_id:
+            queryset = queryset.filter(host_id=host_id)
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+
+        return queryset
 
 class BookingReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = BookingReviewSerializer
@@ -421,7 +502,7 @@ class Create_RentPayment(APIView):
 
     def post(self, request):
         print(request.body)
-        rent_id = int(request.data.get('rent_id'))
+        rent_id = request.data.get('rent_id')
         rent = Rent.objects.get(id=rent_id)
 
         stripe.api_key = settings.STRIPE_SECRET_KEY  # Explicitly set the API key
@@ -457,36 +538,35 @@ class Create_RentPayment(APIView):
         
 
 class RentPaymentSuccess(APIView):
-    permission_classes = []
+    permission_classes = []  # Adjust permissions as needed
 
     def get(self, request, pk):
         try:
             print('1')
             rent = Rent.objects.get(id=pk)
 
+            # Mark rent as paid and record payment timestamp
             rent.status = 'paid'
+            rent.payment_timestamp = now()
             rent.save()
 
             owner_id = rent.booking.host
             property = rent.booking.property
             user = rent.booking.user
 
+            # Notify the property owner about the payment
+            # Uncomment the following lines after integrating notifications
             # message = f"Your property '{property.property_name}' has received a rent payment from {user.name}."
-            print('8')
-            # print('going to sent notification to othe property ownere')
             # async_to_sync(send_user_notification)(user_id=owner_id, message=message, type='rent', senderId=user)
-
-            # print('notification sent from the payment success view')
 
             current_due_date = rent.due_date
             # Calculate the next month's first day as the due date
-
             next_month_due_date = (current_due_date.replace(day=1) + timedelta(days=32)).replace(day=1)
             next_month_due_date = datetime.combine(next_month_due_date, datetime.min.time())  # Convert to datetime
-            next_month_due_date = make_aware(next_month_due_date)  # Ensure timezone awareness if needed
+            next_month_due_date = make_aware(next_month_due_date)  # Ensure timezone awareness
 
-            # Create the next rent instance if it doesn't already exist
-            print('going to create an upcoming rent')
+            # Create or update the next rent instance
+            print('Creating/updating the upcoming rent')
             Rent.objects.update_or_create(
                 booking=rent.booking,
                 due_date=next_month_due_date,
@@ -498,7 +578,7 @@ class RentPaymentSuccess(APIView):
                 }
             )
 
-            print('created the upcoming rent')
+            print('Created the upcoming rent')
             frontend_url = f"http://localhost:5173/account/my-stays/{rent.booking.id}/monthly-rent?paymentSuccess=true"
             
             print('9')
@@ -506,10 +586,202 @@ class RentPaymentSuccess(APIView):
         
         except Rent.DoesNotExist:
             print('11')
-            return Response({'error': 'Booking not found'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': 'Rent not found'}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            print('10',e)
+            print('10', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+# ======================= OWNER DASHBOARD====================================================
+from django.db.models import Count, Sum, Func
+# from rest_framework.exceptions import ValidationError
+from datetime import datetime
+
+class TruncMonth(Func):
+    function = "DATE_TRUNC"
+    template = "%(function)s('month', %(expressions)s)"
+
+class TruncWeek(Func):
+    function = "DATE_TRUNC"
+    template = "%(function)s('week', %(expressions)s)"
 
 
+class BookingDataView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
+    def get(self, request):
+        user = request.user
+        frequency = request.GET.get("frequency", "monthly")  # Default to 'monthly'
+
+        # Validate frequency
+        if frequency not in ["monthly", "weekly"]:
+            raise ValidationError({"error": "Invalid frequency parameter"})
+        
+
+        user = request.user
+        print(user, 'user in dashboard datav')
+        
+        try:
+            # Fetch data based on user type
+            if user.is_staff:
+                print('/////////////user is superuser///////////////////')
+                bookings = Bookings.objects.all()
+                rents = Rent.objects.all()
+            else:
+                print('///////////user is not superuser////////////////////')
+                bookings = Bookings.objects.filter(host=user.id)
+                rents = Rent.objects.filter(booking__host=user.id)
+
+            # Determine the aggregation function based on frequency
+            if frequency == "monthly":
+                period_func = TruncMonth("check_in_date")
+                period_rent_func = TruncMonth("booking__check_in_date")
+            else:  # frequency == "weekly"
+                period_func = TruncWeek("check_in_date")
+                period_rent_func = TruncWeek("booking__check_in_date")
+
+            # Aggregate bookings
+            bookings_summary = (
+                bookings.annotate(period=period_func)
+                .values("period")
+                .annotate(
+                    booking_count=Count("id"),
+                    total_revenue=Sum("booking_amount")  # Access related model field
+                )
+                .order_by("period")
+            )
+
+            # Aggregate rents
+            rents_summary = (
+                rents.annotate(period=period_rent_func)
+                .values("period")
+                .annotate(total_rent=Sum("amount"))
+                .order_by("period")
+            )
+
+            # Format data for response
+            summary_data = {
+                datetime.strptime(str(entry["period"]).split(" ")[0], "%Y-%m-%d").strftime(
+                    "%B %Y" if frequency == "monthly" else "Week of %d %B %Y"
+                ): {
+                    "booking_count": entry["booking_count"],
+                    "total_revenue": entry["total_revenue"],
+                }
+                for entry in bookings_summary
+            }
+
+            rents_data = {
+                datetime.strptime(str(entry["period"]).split(" ")[0], "%Y-%m-%d").strftime(
+                    "%B %Y" if frequency == "monthly" else "Week of %d %B %Y"
+                ): entry["total_rent"]
+                for entry in rents_summary
+            }
+
+            # Prepare response
+            data = {
+                "bookings_summary": summary_data,
+                "monthly_rents_details": rents_data,
+            }
+
+            return Response({"status": "success", "data": data})
+        except Exception as e:
+            return Response({"status": "error", "message": str(e)}, status=500)
+
+
+class DashboardSummaryAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        print(user,'user in dashboard summary')
+        # Filter bookings and rents based on user's superuser status
+        bookings_filter = {}
+        rents_filter = {}
+        properties_filter = {}
+
+        if not user.is_staff:
+            bookings_filter['host'] = user.id
+            rents_filter['booking__host'] = user.id
+            properties_filter['host'] = user.id
+
+        # Total Revenue (from Bookings and Monthly Rent)
+        total_booking_revenue = Bookings.objects.filter(
+            booking_status__in=['confirmed', 'checked_in', 'checked_out'],
+            **bookings_filter
+        ).aggregate(total=Sum('booking_amount'))['total'] or 0
+
+        rent_revenue_notificationsOnly = Rent.objects.filter(
+            status='paid',
+            rent_method='notificationsOnly',
+            **rents_filter
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        rent_revenue_rentThroughHostHunt = Rent.objects.filter(
+            status='paid',
+            rent_method='rentThroughHostHunt',
+            **rents_filter
+        ).aggregate(total=Sum('amount'))['total'] or 0
+
+        total_rent_revenue = rent_revenue_notificationsOnly + rent_revenue_rentThroughHostHunt
+        total_revenue = total_booking_revenue + total_rent_revenue
+
+        # Total Bookings with specific statuses
+        total_bookings = Bookings.objects.filter(
+            booking_status__in=['checked_in', 'checked_out', 'confirmed'],
+            **bookings_filter
+        ).count()
+
+        # Subscribed Bookings with specific statuses
+        subscribed_bookings = Bookings.objects.filter(
+            is_rent=True,
+            booking_status__in=['checked_in', 'checked_out', 'confirmed'],
+            **bookings_filter
+        ).count()
+
+        # Non-subscribed Bookings with specific statuses
+        non_subscribed_bookings = total_bookings - subscribed_bookings
+
+        # Bookings by Status
+        checked_in_bookings = Bookings.objects.filter(
+            booking_status='checked_in',
+            **bookings_filter
+        ).count()
+
+        confirmed_bookings = Bookings.objects.filter(
+            booking_status='confirmed',
+            **bookings_filter
+        ).count()
+
+        checked_out_bookings = Bookings.objects.filter(
+            booking_status='checked_out',
+            **bookings_filter
+        ).count()
+
+        # Property counts
+        total_properties = Property.objects.filter(**properties_filter).count()
+        apartments_count = Property.objects.filter(property_type='apartment', **properties_filter).count()
+        rentals_count = Property.objects.filter(property_type='rental', **properties_filter).count()
+        pgs_count = Property.objects.filter(property_type='pg', **properties_filter).count()
+        hostels_count = Property.objects.filter(property_type='hostel', **properties_filter).count()
+
+        # Prepare Response
+        data = {
+            'total_revenue': total_revenue,
+            'total_booking_revenue': total_booking_revenue,
+            'total_rent_revenue': total_rent_revenue,
+            'rent_revenue_notificationsOnly': rent_revenue_notificationsOnly,
+            'rent_revenue_rentThroughHostHunt': rent_revenue_rentThroughHostHunt,
+            'total_bookings': total_bookings,
+            'subscribed_bookings': subscribed_bookings,
+            'non_subscribed_bookings': non_subscribed_bookings,
+            'checked_in_bookings': checked_in_bookings,
+            'confirmed_bookings': confirmed_bookings,
+            'checked_out_bookings': checked_out_bookings,
+            'total_properties': total_properties,
+            'apartments_count': apartments_count,
+            'rentals_count': rentals_count,
+            'pgs_count': pgs_count,
+            'hostels_count': hostels_count,
+        }
+
+        return Response({"status": "success", "data": data})

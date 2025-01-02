@@ -9,9 +9,11 @@ from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from .models import PropertyDocument, Property, Rooms, Amenity,PropertyAmenity,RoomType,BedType,RoomFacilities, PropertyImage
+from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer,RoomFacilitySerializer,RoomImageSerializer, PropertyImageSerializer
+from booking.models import BookingReview
+from booking.serializer import BookingReviewSerializer
 from rest_framework.decorators import api_view, permission_classes
 
-from .serializers import PropertySerializer, PropertyDocumentSerializer,PropertyViewSerializer,PropertyDetailedViewSerializer,RentalApartmentSerializer,RoomSerializer,RoomListSerializer_Property, PropertyPoliciesSerializer,PropertyAmenityCRUDSerializer,RoomTypeSerializer,BedTypeSerializer,RoomFacilitySerializer,RoomImageSerializer, PropertyImageSerializer
 from admin_management.serializers import AmenitySerializer
 
 from .utils import CustomPagination
@@ -576,19 +578,21 @@ class HostPropertyListView(generics.ListAPIView):
 class PropertyDisplayView(APIView):
     def get(self, request, property_id):
         property_instance = get_object_or_404(Property, id=property_id)
-        
+    
         property_details = PropertySerializer(property_instance).data
         policies_and_services = PropertyPoliciesSerializer(property_instance).data
         amenities = PropertyAmenityCRUDSerializer(property_instance.property_amenities.all(), many=True).data
         rooms = RoomSerializer(property_instance.rooms.all(), many=True).data
         property_images = PropertyImageSerializer(property_instance.property_images.all(),many=True).data
+        property_reviews = BookingReviewSerializer(property_instance.property_reviews.all(),many=True).data
         # Combine the data into a single response
         response_data = {
             'property_details': property_details,
             'policies_and_services': policies_and_services,
             'amenities': amenities,
             'rooms': rooms,
-            'property_images' : property_images
+            'property_images' : property_images,
+            'property_reviews' : property_reviews
         }
         return Response(response_data, status=status.HTTP_200_OK)
 # ====================================== ADMIN MANAGEMENT ==================================
@@ -674,4 +678,157 @@ class PropertyResultView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         else:
             return Response({"error": "City name not provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+# =================== description ===================================
+from openai import OpenAI,OpenAIError
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
+import re
+import environ
+
+
+env = environ.Env()
+environ.Env.read_env()
+client = OpenAI(api_key=env('OPEN_AI_API_KEY'))
+
+
+@csrf_exempt
+def get_response(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)
+
+    try:
+        user_message = json.loads(request.body)
+
+        print(user_message)
+
+        # #Define the prompt for OpenAI
+        # prompt = f"""
+        # Based on the following property details, creative and catching description suggestions.
+
+        # property Details:
+        # {user_message}
+       
+        # """
+
+        # # Call OpenAI API
+        # response = client.chat.completions.create(
+        #     model="gpt-3.5-turbo",
+        #     messages=[
+        #         {"role": "system", "content": "You are a creative assistant who writes engaging descriptions for hostels."},
+        #         {"role": "user", "content": prompt},
+        #     ]
+        # )
+        # answer = response.choices[0].message.content.strip()
+        answer = """
+Welcome to Nirmal Homes, a vibrant hostel located in the heart of Ernakulam, Kerala. Catering to male guests, this hostel offers a warm and inviting atmosphere for travelers seeking comfort and community.
+
+Step into the Male Dormitory, where you'll find 24 cozy bunk beds waiting to provide a restful night's sleep. With shared facilities and a balcony offering scenic views, you'll feel right at home. The monthly rent is a steal at just 2000.00, making it an affordable choice for short or extended stays.
+
+Our hostel boasts 12 bunk beds in the Female Dormitory, ideal for solo female travelers looking for a safe and welcoming space. The serene surroundings and thoughtful amenities make it easy to unwind and connect with fellow guests.
+
+At Nirmal Homes, cleanliness, communication, and overall satisfaction are our top priorities. Just ask Merin Mathew, a satisfied guest who rated their stay as "Great" and praised the hostel for its value and location.
+
+Indulge in the freedom to relax, socialize, and explore Ernakulam with ease. Book your stay at Nirmal Homes today for an unforgettable hostel experience.
+"""
+        print("dGenerated Descriptions:")
+        print(answer)
+        return JsonResponse({"response": answer}, status=200)
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON in request body."}, status=400)
+    except OpenAIError as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
+
+
+class SavePropertyDescriptionView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def post(self, request, property_id):
+        """
+        Update the description of a property.
+        """
+        # Fetch the property instance
+        property_instance = get_object_or_404(Property, id=property_id)
+
+        # Extract the new description from the request data
+        new_description = request.data.get('description', None)
+
+        if not new_description:
+            return Response({"error": "Description is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Update the description field
+        property_instance.description = new_description
+        property_instance.save()
+
+        # Serialize the updated property instance
+        serializer = PropertySerializer(property_instance)
+
+        return Response({
+            "message": "Property description updated successfully.",
+            "property": serializer.data
+        }, status=status.HTTP_200_OK)
+# ===========================================================
+                        # RESPONSE
+# ===========================================================
+                    
+# def get_response(request):
+#     if request.method != "POST":
+#         return JsonResponse({"error": "Invalid request method. Use POST."}, status=405)
+
+#     try:
+#         user_message = json.loads(request.body)
+
+#         print(user_message)
+
+#         # Define the prompt for OpenAI
+#         prompt = f"""
+#         Based on the following hostel details, provide three clearly numbered and formatted creative description suggestions.
+
+#         Hostel Details:
+#         {user_message}
+
+#         Response Format:
+#         1. Description 1
+#         2. Description 2
+#         3. Description 3
+#         """
+
+#         # Call OpenAI API
+#         response = client.chat.completions.create(
+#             model="gpt-3.5-turbo",
+#             messages=[
+#                 {"role": "system", "content": "You are a creative assistant who writes engaging descriptions for hostels."},
+#                 {"role": "user", "content": prompt},
+#             ]
+#         )
+#         answer = response.choices[0].message.content.strip()
+#         print("Generated Descriptions:")
+#         print(answer)
+
+#         # Clean and parse descriptions
+#         descriptions = re.findall(r'\d\.\s(.+)', answer)
+        
+#         # Ensure exactly 3 descriptions
+#         descriptions_dict = {
+#             f"description_{i+1}": descriptions[i] if i < len(descriptions) else ""
+#             for i in range(3)
+#         }
+
+#         print("Parsed Descriptions:")
+#         print(descriptions_dict)
+#         # descriptions_dict = {'description_1': 'Escape to the tranquil ambiance of Nirmal Homes in Ernakulam, where male guests can revel in a comfortable retreat. Enjoy the camaraderie of fellow travelers in the Male Dormitory with 24 inviting bunk beds. With a prime location and welcoming vibes, this hostel promises a memorable stay for the modern adventurer.', 'description_2': 'Dive into a world of shared experiences at Nirmal Homes, an exclusive male-only hostel in Ernakulam. Unwind in the cozy Male Dormitory boasting 24 bunk beds, ideal for budget-conscious travelers seeking a blend of affordability and camaraderie. Embrace the spirit of exploration as you connect with like-minded guests in this vibrant accommodation.', 'description_3': 'Experience the essence of community living at Nirmal Homes, a haven for male travelers in Ernakulam. Step into the Male Dormitory with 24 bunk beds, where new friendships await amidst a backdrop of comfort and convenience. Indulge in the simplicity of shared spaces and embark on a journey of discovery at this welcoming hostel.'} 
+#         # descriptions_dict = 'Escape to the tranquil ambiance of Nirmal Homes in Ernakulam, where male guests can revel in a comfortable retreat. Enjoy the camaraderie of fellow travelers in the Male Dormitory with 24 inviting bunk beds. With a prime location and welcoming vibes, this hostel promises a memorable stay for the modern adventurer. Dive into a world of shared experiences at Nirmal Homes, an exclusive male-only hostel in Ernakulam. Unwind in the cozy Male Dormitory boasting 24 bunk beds, ideal for budget-conscious travelers seeking a blend of affordability and camaraderie. Embrace the spirit of exploration as you connect with like-minded guests in this vibrant accommodation. Experience the essence of community living at Nirmal Homes, a haven for male travelers in Ernakulam. Step into the Male Dormitory with 24 bunk beds, where new friendships await amidst a backdrop of comfort and convenience. Indulge in the simplicity of shared spaces and embark on a journey of discovery at this welcoming hostel'
+#         return JsonResponse({"response": descriptions_dict}, status=200)
+
+#     except json.JSONDecodeError:
+#         return JsonResponse({"error": "Invalid JSON in request body."}, status=400)
+#     except OpenAIError as e:
+#         return JsonResponse({"error": str(e)}, status=500)
 

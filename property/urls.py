@@ -37,6 +37,8 @@ urlpatterns = [
     path('property-rooms/<int:property_id>/', RoomListByPropertyView.as_view(), name='rooms_by_property'),
 
     path('onboarding/property-images/<int:pk>/', crud_property_images),
+    path('onboarding/generate-description',get_response),
+    path('onboarding/save-description/<int:property_id>/', SavePropertyDescriptionView.as_view(), name='save-description'),
 
     # ========================= RETRIEVING VIEWS =========================
     path('host-properties/', HostPropertyListView.as_view(), name='host_properties'),  # For request.user
@@ -56,6 +58,7 @@ urlpatterns = [
     # ========================= ADMIN RETRIEVING DATA FOR VIEWING =========================
     path('all-properties/', get_all_properties_basic_details, name='get_all_properties'),
     path('basic-details/<int:property_id>/', PropertyDetailView.as_view(), name='property_basic_details'),
+    
 ]
 
 # Add router URLs

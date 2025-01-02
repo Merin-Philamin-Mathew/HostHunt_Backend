@@ -14,13 +14,18 @@ class RentSerializer(serializers.ModelSerializer):
 
 
 
+from rest_framework import serializers
+
 class BookingReviewSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+
     class Meta:
         model = BookingReview
         fields = [
             'id',
             'booking',
             'user',
+            'user_name',  # Add the user's name to the output
             'host',
             'property',
             'cleanliness',
@@ -35,6 +40,10 @@ class BookingReviewSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['user', 'host', 'property']
+
+    def get_user_name(self, obj):
+        """Fetch the username of the reviewer."""
+        return obj.user.name if obj.user else None
 
     def create(self, validated_data):
         booking = validated_data['booking']

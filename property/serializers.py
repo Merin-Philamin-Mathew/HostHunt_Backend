@@ -8,12 +8,14 @@ class PropertySerializer(serializers.ModelSerializer):
     class Meta:
         model = Property
         fields = [
+            'id',
             'host',
             'property_name',
             'property_type',
             'city',
             'postcode',
             'address',
+            'description',
             # 'location',
             # 'lat',
             # 'lng',
