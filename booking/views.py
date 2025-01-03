@@ -21,6 +21,7 @@ from asgiref.sync import async_to_sync
 
 from datetime import datetime, timedelta
 from django.utils.timezone import make_aware
+from django.db.models import Q
 
 
 
@@ -592,7 +593,9 @@ class RentPaymentSuccess(APIView):
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
-# ======================= OWNER DASHBOARD====================================================
+# ==========================================================================
+# =======================  DASHBOARD====================================================
+# ===========================================================================
 from django.db.models import Count, Sum, Func
 # from rest_framework.exceptions import ValidationError
 from datetime import datetime
@@ -785,3 +788,47 @@ class DashboardSummaryAPIView(APIView):
         }
 
         return Response({"status": "success", "data": data})
+
+
+
+class PaymentRecordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Extract query parameters
+        start_date = request.query_params.get("start_date", None)
+        end_date = request.query_params.get("end_date", None)
+        payment_type = request.query_params.get("payment_type", None)
+        search_term = request.query_params.get("search", None)
+
+        user = request.user
+        
+        # Filter rents based on parameters
+        if user.is_staff:
+            print('/////////////user is superuser///////////////////')
+            rents = Rent.objects.all()
+        else:
+            print('///////////user is not superuser////////////////////')
+            rents = Rent.objects.filter(booking__host=user.id)
+
+        if start_date and end_date:
+            rents = rents.filter(payment_timestamp__range=[start_date, end_date])
+
+        if payment_type and payment_type != "all":
+            rents = rents.filter(rent_method=payment_type)
+
+        if search_term:
+            rents = rents.filter(
+                Q(booking__id__icontains=search_term) |
+                Q(booking__guest_name__icontains=search_term)
+            )
+
+        # Paginate the results
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        result_page = paginator.paginate_queryset(rents, request)
+
+        # Serialize the data
+        serializer = RentSerializer(result_page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+

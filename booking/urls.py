@@ -40,6 +40,7 @@ urlpatterns = [
 # =================================== DASHBOARD =========================================
     path("booking-data/", BookingDataView.as_view()),
     path("summary/", DashboardSummaryAPIView.as_view()),
+    path("payment-record/", PaymentRecordView.as_view()),
 
 
 ]
