@@ -35,7 +35,7 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool('DEBUG', default=False)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'your-production-domain.com']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'https://merinphilamin.site/']
 
 SESSION_COOKIE_AGE = 3600  # 1 hour (in seconds)
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
@@ -156,8 +156,7 @@ SIMPLE_JWT = {
 CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_ALLOW_ALL = False
 CORS_ORIGIN_WHITELIST = (
-  'http://localhost:5173',
-  'https://host-hunt-frontend.vercel.app/'
+  'https://merinphilamin.site/'
 )
 
 
@@ -183,12 +182,13 @@ CORS_ALLOW_METHODS =  [
 ]
 CORS_ALLOWED_ORIGINS  = [
     "http://localhost:5173",
-    'https://your-production-domain.com',
+    'https://merinphilamin.site/',
 
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:5173',
+    'https://merinphilamin.site/'
 ]
 
 ROOT_URLCONF = 'project.urls'
