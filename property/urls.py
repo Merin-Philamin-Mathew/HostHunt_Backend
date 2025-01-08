@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import *
 
 # ViewSet action mappings
+# changes updated
 create_get_room = RoomViewSet.as_view({
     'post': 'post',
 })
