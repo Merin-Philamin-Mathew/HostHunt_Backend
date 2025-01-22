@@ -192,22 +192,6 @@ class CustomTokenRefreshView(TokenRefreshView):
         request.data['refresh'] = refresh_token
         return super().post(request, *args, **kwargs)
 
-# class RefreshTokenView(APIView):
-#     permission_classes = [permissions.AllowAny]
-#     def post(self, request):
-#         print('refresh token ')
-#         refresh_token = request.COOKIES.get('refresh_token')
-#         print('refresh token ',refresh_token)
-        
-#         if not refresh_token:
-#             return Response({"error": "Refresh token missing"}, status=status.HTTP_400_BAD_REQUEST)
-        
-#         try:
-#             refresh = RefreshToken(refresh_token)
-#             access_token = refresh.access_token
-#             return Response({'access': str(access_token)}, status=status.HTTP_200_OK)
-#         except Exception as e:
-#             return Response({"error": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
 
     
 class ForgotPassword(APIView):

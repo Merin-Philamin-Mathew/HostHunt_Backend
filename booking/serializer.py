@@ -14,10 +14,10 @@ class RentSerializer(serializers.ModelSerializer):
 
 
 
-from rest_framework import serializers
 
 class BookingReviewSerializer(serializers.ModelSerializer):
     user_name = serializers.SerializerMethodField()
+    property_name = serializers.SerializerMethodField()
 
     class Meta:
         model = BookingReview
@@ -26,6 +26,7 @@ class BookingReviewSerializer(serializers.ModelSerializer):
             'booking',
             'user',
             'user_name',  # Add the user's name to the output
+            'property_name',
             'host',
             'property',
             'cleanliness',
@@ -33,6 +34,7 @@ class BookingReviewSerializer(serializers.ModelSerializer):
             'check_in',
             'communication',
             'location',
+            'review_replay',
             'value',
             'overall_rating',
             'review_text',
@@ -44,6 +46,10 @@ class BookingReviewSerializer(serializers.ModelSerializer):
     def get_user_name(self, obj):
         """Fetch the username of the reviewer."""
         return obj.user.name if obj.user else None
+    
+    def get_property_name(self, obj):
+        """Fetch the username of the reviewer."""
+        return obj.property.property_name if obj.property else None
 
     def create(self, validated_data):
         booking = validated_data['booking']

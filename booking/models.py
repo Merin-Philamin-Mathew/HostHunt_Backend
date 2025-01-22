@@ -59,6 +59,29 @@ class Rent(models.Model):
         on_delete=models.CASCADE, 
         related_name='rents'
     )
+    month_of_rent = models.CharField(
+        max_length=20, 
+        choices=[
+            ('January', 'January'), 
+            ('February', 'February'), 
+            ('March', 'March'), 
+            ('April', 'April'), 
+            ('May', 'May'), 
+            ('June', 'June'), 
+            ('July', 'July'), 
+            ('August', 'August'), 
+            ('September', 'September'), 
+            ('October', 'October'), 
+            ('November', 'November'), 
+            ('December', 'December')
+        ],
+        null=True,  
+        blank=True
+    )
+    explanation = models.TextField(
+        null=True, 
+        blank=True
+    ) 
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     due_date = models.DateField()  # Owner-defined due date (e.g., 1st of every month)
     notification_period = models.IntegerField(default=3)  # Notify 3 days before
@@ -94,6 +117,8 @@ class Rent(models.Model):
             self.id = f"RN{today}{unique_number}"  # Create a professional ID
         super(Rent, self).save(*args, **kwargs)  # Reference the correct model here
         
+from django.utils.timezone import now
+
 class BookingReview(models.Model):
     booking = models.OneToOneField(Bookings, on_delete=models.CASCADE, related_name='review')
     user = models.ForeignKey('authentication.CustomUser', on_delete=models.CASCADE, related_name='user_reviews')
@@ -107,13 +132,19 @@ class BookingReview(models.Model):
     value = models.FloatField(default=0, help_text="Rating for value (0-5)")
     overall_rating = models.FloatField(default=0, help_text="Overall rating (calculated)")
     review_text = models.TextField(blank=True, null=True, help_text="Optional review text")
+    review_replay = models.TextField(blank=True, null=True, help_text="Optional review replay by host")
+    review_replay_updated_at = models.DateTimeField(null=True, blank=True, help_text="Timestamp for review replay last updated")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-
-
     def __str__(self):
         return f"Review for Booking {self.booking.id} by {self.user.name}"
+
+    def save(self, *args, **kwargs):
+        # Update the timestamp when review replay is created or updated
+        if self.review_replay:
+            self.review_replay_updated_at = now()
+        super().save(*args, **kwargs)
 
 class ReviewLikeDislike(models.Model):
     review = models.ForeignKey(BookingReview, on_delete=models.CASCADE, related_name='likes_dislikes')

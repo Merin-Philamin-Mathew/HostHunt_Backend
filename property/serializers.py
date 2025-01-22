@@ -16,9 +16,9 @@ class PropertySerializer(serializers.ModelSerializer):
             'postcode',
             'address',
             'description',
-            # 'location',
-            # 'lat',
-            # 'lng',
+            'location',
+            'lat',
+            'lng',
             'thumbnail_image_url',
             'total_bed_rooms',
             'no_of_beds',
@@ -296,6 +296,7 @@ class PropertyViewSerializer(serializers.ModelSerializer):
             'no_of_beds',
             'status',
             'is_listed',
+            'location'
         ]
 
 # for getting all the amenities of a property in the property detailed view

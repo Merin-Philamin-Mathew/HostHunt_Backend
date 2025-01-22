@@ -19,7 +19,7 @@ from admin_management.serializers import AmenitySerializer
 from .utils import CustomPagination
 from .utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
 
-from django.db.models import Q  
+from django.db.models import Q, Avg  
 
 
 
@@ -166,7 +166,6 @@ class PropertyDocumentUploadView(APIView):
 
 # STEP3 
 # policies and serivicies
-
 class PropertyPoliciesView(APIView):
     def patch(self, request, property_id):
         try:
@@ -282,9 +281,17 @@ class ChangeStatus_Submit_Review(APIView):
         
         if status not in self.VALID_STATUSES:
             return Response({"error": "Invalid status."}, status=400)
+        
+        
 
         try:
             property_instance = Property.objects.get(id=property_id)
+            print(status)
+            if status == "published":
+                user = request.user
+                if not user.is_owner:  
+                    user.is_owner = True
+                    user.save() 
             property_instance.status = status
             property_instance.save()
 
@@ -572,7 +579,9 @@ class HostPropertyListView(generics.ListAPIView):
         return queryset
 
 
+#  ==================================================================================================
 #  ======================================= USER SIDE MANAGEMENT =============================
+#  ==================================================================================================
 #  =============================== DETAILED ROOM DETAILS IN USER SIDE =============================
   
 class PropertyDisplayView(APIView):
@@ -595,7 +604,154 @@ class PropertyDisplayView(APIView):
             'property_reviews' : property_reviews
         }
         return Response(response_data, status=status.HTTP_200_OK)
-# ====================================== ADMIN MANAGEMENT ==================================
+
+# ============================== USER SIDE PROPERTY DISPLAYS ======================================
+# not in use
+class PropertyResultView(APIView):
+    permission_classes = [permissions.AllowAny]
+    def get(self, request, *args, **kwargs):
+        city = request.query_params.get('city', None)
+        if city:
+            properties = Property.objects.filter(
+                city__iexact=city,
+                status='published',
+                # is_listed = True
+                )
+            if request.user.is_authenticated:
+                properties = properties.exclude(host = request.user)
+            serializer = PropertyViewSerializer(properties, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response({"error": "City name not provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+from django.db import connection
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class NearbyPropertiesView(APIView):
+    def get(self, request):
+        try:
+            try:
+                lat = float(request.query_params.get('lat', 0))
+                lng = float(request.query_params.get('lng', 0))
+                if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+                    return Response(
+                        {"error": "Invalid latitude or longitude values"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            except ValueError:
+                return Response(
+                    {"error": "Invalid coordinate format"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            radius_km = 10
+            current_user_id = request.user.id if request.user.is_authenticated else None
+            
+            print("Searching with parameters:")
+            print(f"Latitude: {lat}")
+            print(f"Longitude: {lng}")
+            print(f"Current user ID: {current_user_id}")
+
+            query = """
+                WITH distances AS (
+                    SELECT 
+                        p.id,
+                        (6371 * acos(
+                            LEAST(1, cos(radians(%s)) * cos(radians(p.lat)) * 
+                            cos(radians(p.lng) - radians(%s)) + 
+                            sin(radians(%s)) * sin(radians(p.lat)))
+                        )) AS distance
+                    FROM property_property p
+                    WHERE p.lat IS NOT NULL 
+                        AND p.lng IS NOT NULL
+                        AND (p.host_id IS NULL OR p.host_id != %s)
+                )
+                SELECT id, distance
+                FROM distances
+                WHERE distance <= %s
+                ORDER BY distance;
+            """
+            
+            params = [lat, lng, lat, current_user_id or 0, radius_km]
+            print("SQL Query:", query)
+            print("Parameters:", params)
+            
+            with connection.cursor() as cursor:
+                cursor.execute(query, params)
+                rows = cursor.fetchall()
+                print(f"Found {len(rows)} results")
+                properties = [{"id": row[0], "distance": float(row[1])} 
+                            for row in rows]
+
+            response_data = {
+                'property_ids': [prop["id"] for prop in properties],
+                'total': len(properties),
+                'center': {'lat': lat, 'lng': lng},
+                'radius_km': radius_km
+            }
+            print("Response data:", response_data)
+            
+            return Response(response_data)
+
+        except Exception as e:
+            logger.error(f"Error in NearbyPropertiesView: {str(e)}")
+            print(f"Full error: {str(e)}")
+            return Response(
+                {"error": "An error occurred while processing your request"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+
+class PropertyCardViewUserSide(APIView):
+    def post(self, request):
+        try:
+            # Get property IDs from request
+            property_ids = request.data.get('property_ids', [])
+            
+            # Get properties with their average ratings
+            properties = Property.objects.filter(id__in=property_ids).prefetch_related('property_reviews')
+            
+            # Prepare response data
+            response_data = []
+            for property in properties:
+                # Calculate average overall rating
+                avg_rating = property.property_reviews.aggregate(
+                    avg_rating=Avg('overall_rating')
+                )['avg_rating']
+                
+                property_data = {
+                    'id': property.id,
+                    'property_name': property.property_name,
+                    'property_type': property.property_type,
+                    'address': property.address,
+                    'city': property.city,
+                    'thumbnail_image_url': property.thumbnail_image_url,
+                    'total_bed_rooms': property.total_bed_rooms,
+                    'no_of_beds': property.no_of_beds,
+                    'is_private': property.is_private,
+                    'gender_restriction': property.gender_restriction,
+                    'avg_rating': round(avg_rating, 1) if avg_rating else None,
+                    'total_reviews': property.property_reviews.count(),
+                    'caution_deposit': property.caution_deposit
+                }
+                response_data.append(property_data)
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+#  ==================================================================================================
+#  ====================================== ADMIN MANAGEMENT ==================================
+#  ==================================================================================================
+
 # =============================== GET ALL PROPERTY BASIC DETAILS ==================================
 
 # function to retrieve all the properites by status in the admin side and user side for displaying
@@ -661,27 +817,6 @@ class PropertyDetailView(generics.RetrieveAPIView):
 #         return Response(serializer.data)
     
 
-# ============================== USER SIDE PROPERTY DISPLAYS ======================================
-class PropertyResultView(APIView):
-    permission_classes = [permissions.AllowAny]
-    def get(self, request, *args, **kwargs):
-        city = request.query_params.get('city', None)
-        if city:
-            properties = Property.objects.filter(
-                city__iexact=city,
-                status='published',
-                # is_listed = True
-                )
-            if request.user.is_authenticated:
-                properties = properties.exclude(host = request.user)
-            serializer = PropertyViewSerializer(properties, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        else:
-            return Response({"error": "City name not provided"}, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
 
 # =================== description ===================================
 from openai import OpenAI,OpenAIError
@@ -707,35 +842,35 @@ def get_response(request):
 
         print(user_message)
 
-        # #Define the prompt for OpenAI
-        # prompt = f"""
-        # Based on the following property details, creative and catching description suggestions.
+        #Define the prompt for OpenAI
+        prompt = f"""
+        Based on the following property details, creative and catching description suggestions.
 
-        # property Details:
-        # {user_message}
+        property Details:
+        {user_message}
        
-        # """
+        """
 
-        # # Call OpenAI API
-        # response = client.chat.completions.create(
-        #     model="gpt-3.5-turbo",
-        #     messages=[
-        #         {"role": "system", "content": "You are a creative assistant who writes engaging descriptions for hostels."},
-        #         {"role": "user", "content": prompt},
-        #     ]
-        # )
-        # answer = response.choices[0].message.content.strip()
-        answer = """
-Welcome to Nirmal Homes, a vibrant hostel located in the heart of Ernakulam, Kerala. Catering to male guests, this hostel offers a warm and inviting atmosphere for travelers seeking comfort and community.
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a creative assistant who writes engaging descriptions for hostels."},
+                {"role": "user", "content": prompt},
+            ]
+        )
+        answer = response.choices[0].message.content.strip()
+#         answer = """
+# Welcome to Nirmal Homes, a vibrant hostel located in the heart of Ernakulam, Kerala. Catering to male guests, this hostel offers a warm and inviting atmosphere for travelers seeking comfort and community.
 
-Step into the Male Dormitory, where you'll find 24 cozy bunk beds waiting to provide a restful night's sleep. With shared facilities and a balcony offering scenic views, you'll feel right at home. The monthly rent is a steal at just 2000.00, making it an affordable choice for short or extended stays.
+# Step into the Male Dormitory, where you'll find 24 cozy bunk beds waiting to provide a restful night's sleep. With shared facilities and a balcony offering scenic views, you'll feel right at home. The monthly rent is a steal at just 2000.00, making it an affordable choice for short or extended stays.
 
-Our hostel boasts 12 bunk beds in the Female Dormitory, ideal for solo female travelers looking for a safe and welcoming space. The serene surroundings and thoughtful amenities make it easy to unwind and connect with fellow guests.
+# Our hostel boasts 12 bunk beds in the Female Dormitory, ideal for solo female travelers looking for a safe and welcoming space. The serene surroundings and thoughtful amenities make it easy to unwind and connect with fellow guests.
 
-At Nirmal Homes, cleanliness, communication, and overall satisfaction are our top priorities. Just ask Merin Mathew, a satisfied guest who rated their stay as "Great" and praised the hostel for its value and location.
+# At Nirmal Homes, cleanliness, communication, and overall satisfaction are our top priorities. Just ask Merin Mathew, a satisfied guest who rated their stay as "Great" and praised the hostel for its value and location.
 
-Indulge in the freedom to relax, socialize, and explore Ernakulam with ease. Book your stay at Nirmal Homes today for an unforgettable hostel experience.
-"""
+# Indulge in the freedom to relax, socialize, and explore Ernakulam with ease. Book your stay at Nirmal Homes today for an unforgettable hostel experience.
+# """
         print("dGenerated Descriptions:")
         print(answer)
         return JsonResponse({"response": answer}, status=200)

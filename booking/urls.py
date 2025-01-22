@@ -36,6 +36,7 @@ urlpatterns = [
     path('reviews/<int:pk>/', BookingReviewDetailView.as_view(), name='reviews-detail'),
     # reviews viewing for all
     path('all-reviews/', BookingReviewListPublicView.as_view(), name='reviews-detail'),
+    path('reviews/reply/<int:pk>/', HostReplyView.as_view(), name='review-reply'),
 
 # =================================== DASHBOARD =========================================
     path("booking-data/", BookingDataView.as_view()),

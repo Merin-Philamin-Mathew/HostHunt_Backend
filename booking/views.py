@@ -4,7 +4,7 @@ from datetime import datetime
 from rest_framework import permissions,status,generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.exceptions import NotFound, ValidationError, PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 
 
@@ -24,10 +24,10 @@ from django.utils.timezone import make_aware
 from django.db.models import Q
 
 
-
-
+FRONTEND_BASE_URL = settings.FRONTEND_BASE_URL
+BACKEND_BASE_URL = settings.BACKEND_BASE_URL
 class CreatePayment(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classe = [permissions.IsAuthenticated]
 
     def post(self, request):
         print(request.body)
@@ -79,8 +79,8 @@ class CreatePayment(APIView):
                 payment_method_types=['card'],
                 mode='payment',
                 line_items=line_items,
-                success_url=f"http://localhost:8000/booking/payment-success/{booking.id}/",
-                cancel_url=f"http://localhost:8000/payment-cancel/",
+                success_url=f"{BACKEND_BASE_URL}/booking/payment-success/{booking.id}/",
+                cancel_url=f"{BACKEND_BASE_URL}/payment-cancel/",
                 metadata={'order_id': booking.id},
             )
 
@@ -119,7 +119,7 @@ class PaymentSuccess(APIView):
 
             print('notification sent from the payment success view')
 
-            frontend_url = f"http://localhost:5173/account/my-stays?booking_id={pk}"
+            frontend_url = f"{FRONTEND_BASE_URL}/account/my-stays?booking_id={pk}"
             return HttpResponseRedirect(frontend_url)
         
         except Bookings.DoesNotExist:
@@ -179,6 +179,7 @@ class BookingDetailsView(APIView):
                     "value": booking.review.value if hasattr(booking, 'review') else None,
                     "overall_rating": booking.review.overall_rating if hasattr(booking, 'review') else None,
                     "review_text": booking.review.review_text if hasattr(booking, 'review') else None,
+                    "review_replay": booking.review.review_replay if hasattr(booking, 'review') else None,
                     "created_at": booking.review.created_at if hasattr(booking, 'review') else None,
                 } if hasattr(booking, 'review') else None,
             }
@@ -330,6 +331,7 @@ class BookingReviewListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return BookingReview.objects.filter(user=self.request.user)
+    
 
     def perform_create(self, serializer):
         serializer.save()
@@ -383,7 +385,7 @@ class BookingReviewListPublicView(generics.ListAPIView):
         host_id = self.request.query_params.get('host_id')
         user_id = self.request.query_params.get('user_id')
         page_size = self.request.query_params.get('page_size')
-
+        print(property_id, host_id, user_id, page_size, self.request.user.id)     
         # Ensure page_size is provided
         if not page_size:
             raise ValidationError({
@@ -392,10 +394,13 @@ class BookingReviewListPublicView(generics.ListAPIView):
 
         # Apply filters
         if property_id:
+            print('property_id', property_id)
             queryset = queryset.filter(property_id=property_id)
-        if host_id:
+        if host_id and host_id==self.request.user.id:
+            print('host_id', host_id)
             queryset = queryset.filter(host_id=host_id)
-        if user_id:
+        if user_id and user_id==self.request.user.id: 
+            print('user_id', user_id)    
             queryset = queryset.filter(user_id=user_id)
 
         return queryset
@@ -405,8 +410,37 @@ class BookingReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return BookingReview.objects.filter(user=self.request.user)
+        return BookingReview.objects.filter(user=self.self.request.user)
    
+
+class HostReplyView(generics.UpdateAPIView):
+    queryset = BookingReview.objects.all()
+    serializer_class = BookingReviewSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        review_id = kwargs.get('pk')
+        reply_text = request.data.get('review_reply')
+        print('reply_text', reply_text)
+        print('review_id', review_id)
+
+        try:
+            # Fetch the review instance
+            review = BookingReview.objects.get(id=review_id)
+
+            # Ensure that the request user is the host of the review
+            if review.host.id != request.user.id:
+                print('You are not allowed to reply to this review.')
+                raise PermissionDenied("You are not allowed to reply to this review.")
+
+            # Update the review reply
+            review.review_replay = reply_text
+            review.save()
+            print(review.review_replay)
+
+            return Response({"success": "Reply saved successfully."}, status=200)
+        except BookingReview.DoesNotExist:
+            return Response({"error": "Review not found."}, status=404)
 # ==========================RENT MANAGEMENT =========================================
 class CreateRentView(APIView):
     def post(self, request, *args, **kwargs):
@@ -528,8 +562,8 @@ class Create_RentPayment(APIView):
                 payment_method_types=['card'],
                 mode='payment',
                 line_items=line_items,
-                success_url=f"http://localhost:8000/booking/rent_payment_success/{rent.id}/",
-                cancel_url=f"http://localhost:8000/payment-cancel/",
+                success_url=f"{BACKEND_BASE_URL}/booking/rent_payment_success/{rent.id}/",
+                cancel_url=f"{BACKEND_BASE_URL}/payment-cancel/",
                 metadata={'order_id': rent.id},
             )
 
@@ -580,7 +614,8 @@ class RentPaymentSuccess(APIView):
             )
 
             print('Created the upcoming rent')
-            frontend_url = f"http://localhost:5173/account/my-stays/{rent.booking.id}/monthly-rent?paymentSuccess=true"
+
+            frontend_url = f"{FRONTEND_BASE_URL}/account/my-stays/{rent.booking.id}/monthly-rent?paymentSuccess=true"
             
             print('9')
             return HttpResponseRedirect(frontend_url)

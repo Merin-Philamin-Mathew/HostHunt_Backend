@@ -31,6 +31,9 @@ s3 = boto3.client('s3',
                 aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
                 aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
                 region_name=region_name)
+print('=================================================')
+print('s3',s3)
+print('=================================================')
 
 def get_s3_file_url(file_name, s3_file_path):
 

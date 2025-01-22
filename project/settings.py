@@ -18,13 +18,17 @@ from celery.schedules import crontab
 from celery import Celery
 
 
+BASE_DIR = Path(__file__).resolve().parent.parent
 # Initialise environment variables
 env = environ.Env()
-environ.Env.read_env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Explicitly specify the .env location
+env.read_env(os.path.join(BASE_DIR, '.env'))
+
+FRONTEND_BASE_URL = env('FRONTENDBASEURL')
+BACKEND_BASE_URL = env('BACKENDBASEURL')
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -35,7 +39,7 @@ SECRET_KEY = env('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env.bool('DEBUG', default=False)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'https://merinphilamin.site/']
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[])
 
 SESSION_COOKIE_AGE = 3600  # 1 hour (in seconds)
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
@@ -74,6 +78,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
+            # 'hosts': [('redis', 6379)],
             'hosts': [('localhost', 6379)],
         },
     },
@@ -155,9 +160,10 @@ SIMPLE_JWT = {
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ORIGIN_ALLOW_ALL = False
-CORS_ORIGIN_WHITELIST = (
-  'https://merinphilamin.site/'
-)
+
+
+CORS_ORIGIN_WHITELIST = env.list('CORS_ORIGIN_WHITELIST', default=())
+
 
 
 CORS_ALLOW_HEADERS = [
@@ -180,16 +186,12 @@ CORS_ALLOW_METHODS =  [
     "POST",
     "PUT",
 ]
-CORS_ALLOWED_ORIGINS  = [
-    "http://localhost:5173",
-    'https://merinphilamin.site/',
 
-]
 
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:5173',
-    'https://merinphilamin.site/'
-]
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+
+
 
 ROOT_URLCONF = 'project.urls'
 
@@ -219,19 +221,20 @@ WSGI_APPLICATION = 'project.wsgi.application'
 #     'default': {
 #         'ENGINE': 'django.db.backends.sqlite3',
 #         'NAME': BASE_DIR / 'db.sqlite3',
-#     }
+#     
 # }
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': env('DB_NAME'),         # The name of the database you created
-        'USER': env('DB_USER'),         # Your PostgreSQL username
-        'PASSWORD': env('DB_PASSWORD'),# Your PostgreSQL password
-        'HOST': env('DB_HOST'),        # Set to 'localhost' for local development
-        'PORT': env('DB_PORT'),             # PostgreSQL runs on port 5432 by default
+        'NAME': env('DB_NAME'),       
+        'USER': env('DB_USER'),        
+        'PASSWORD': env('DB_PASSWORD'),
+        'HOST': env('DB_HOST'),      
+        'PORT': env('DB_PORT'),          
     }
 }
+
 
 
 
@@ -292,7 +295,7 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
 AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME')
-AWS_S3_SIGNATURE_NAME = 's3v4',
+AWS_S3_SIGNATURE_NAME = 's3v4'
 AWS_S3_REGION_NAME = env('AWS_S3_REGION_NAME')
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL =  None
@@ -306,10 +309,10 @@ STRIPE_SECRET_KEY  = env('STRIPE_SECRET_KEY')
 
 
 # CELERY CONFIGURATION
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # URL for Redis
+CELERY_BROKER_URL = env('CELERY_BROKER_URL')  # URL for Redis
 CELERY_ACCEPT_CONTENT = ['json']  # Task serialization format
 CELERY_TASK_SERIALIZER = 'json'   # Serialization format for tasks
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Backend for storing task results
+CELERY_RESULT_BACKEND = env('CELERY_BROKER_URL')  # Backend for storing task results
 CELERY_TIMEZONE = 'UTC'  # Use your desired timezone
 
 CELERY_BEAT_SCHEDULE = {

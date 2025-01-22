@@ -46,7 +46,6 @@ urlpatterns = [
     path('documents/<int:property_id>/', PropertyDocumentUploadView.as_view(), name='get_all_docs'),
     path('policies-services/<int:property_id>/', GetPoliciesServicesView.as_view(), name='get_policies_services'),
 
-    path('property-results/', PropertyResultView.as_view(), name='property_list'),
 
     path('all-amenities/', AmenityListView.as_view(), name='list_all_property_amenities'),
     path('active-room-facilities/', ActiveFacilityListView.as_view(), name='active_room_facilities'),
@@ -54,8 +53,14 @@ urlpatterns = [
     path('active-bed-types/', ActiveBedTypeView.as_view(), name='active_bed_types'),
 
     # ========================= USER RETRIEVING DATA FOR VIEWING =========================
+    # not in use replaced by property_nearby
+    path('property-results/', PropertyResultView.as_view(), name='property_results'),
+    path('property-nearby/', NearbyPropertiesView.as_view(), name='property_nearby'),
+    # for property_detail_page
     path('property-display/<int:property_id>/', PropertyDisplayView.as_view(), name='property_display'),
-
+    # for propetry_cards
+    path('property-cards/', PropertyCardViewUserSide.as_view(), name='property_cards'),
+    
     # ========================= ADMIN RETRIEVING DATA FOR VIEWING =========================
     path('all-properties/', get_all_properties_basic_details, name='get_all_properties'),
     path('basic-details/<int:property_id>/', PropertyDetailView.as_view(), name='property_basic_details'),
