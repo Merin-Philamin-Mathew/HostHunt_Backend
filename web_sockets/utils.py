@@ -5,9 +5,14 @@ from datetime import datetime
 from asgiref.sync import async_to_sync
 from asgiref.sync import sync_to_async
 from channels.layers import get_channel_layer
+from django.conf import settings
 
-# Initialize Redis client
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
+redis_client = redis.StrictRedis(
+    host=settings.REDIS_HOST,
+    port=settings.REDIS_PORT,
+    db=0
+)
+
 
 def store_notification_in_redis(user_id, message, type, senderId):
     print('storing in the redis')
@@ -41,7 +46,7 @@ def store_notification_in_redis(user_id, message, type, senderId):
 
 def get_notifications_from_redis(user_id):
     # Key format: notifications:<user_id>
-    print('going to get the notifications')
+    print('going to get the notifications from redis')
     key = f'notifications:{user_id}'
     notifications = redis_client.lrange(key, 0, -1)
     print('notifications in getting view///', notifications)
@@ -52,7 +57,7 @@ def send_user_notification(user_id, message, type, senderId=None):
     # Store the notification in Redis
     print('received the notification')
     store_notification_in_redis(user_id, message, type, senderId)
-    print('storing in tehy redis completed elbin ok alle')
+    print('storing in tehy redis ')
     # Send real-time notification via WebSocket
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(

@@ -24,7 +24,7 @@ class TestConsumer(AsyncWebsocketConsumer):
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.user_id = self.scope['url_route']['kwargs']['user_id']
-        print('user_id', self.user_id)
+        print('Notification consumer user_id', self.user_id)
         
         if not self.user_id:
             print('IS_ANONYMOUS')
@@ -39,6 +39,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
             # Fetch historical notifications from Redis
             notifications = get_notifications_from_redis(self.user_id)
+            print('====================================================================')
             print('notifications in the connect view', notifications)
 
             # # Send historical notifications to the WebSocket

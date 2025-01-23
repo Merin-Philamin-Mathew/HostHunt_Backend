@@ -74,16 +74,18 @@ INSTALLED_APPS = [
 ]
 ASGI_APPLICATION = 'project.asgi.application'
 
+
+REDIS_HOST = env('REDIS_HOST') if 'REDIS_HOST' in env else 'localhost'
+REDIS_PORT = int(env('REDIS_PORT')) if 'REDIS_PORT' in env else 6379
+
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            # 'hosts': [('redis', 6379)],
-            'hosts': [('localhost', 6379)],
+            'hosts': [(REDIS_HOST, REDIS_PORT)],
         },
     },
 }
-
 
 
 MIDDLEWARE = [
