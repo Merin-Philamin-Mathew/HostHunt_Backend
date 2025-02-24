@@ -26,7 +26,7 @@ Django Rest Framework-based backend for the HostHunt platform, featuring Celery 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Merin-Philamin-Mathew/HostHunt_Backend.git
+git clone <backend-repository-url>
 cd hosthunt-backend
 ```
 
@@ -121,3 +121,6 @@ Celery handles:
 4. Push to branch
 5. Create Pull Request
 
+## 📄 License
+
+MIT License
