@@ -68,28 +68,6 @@ docker-compose up -d
 - Celery beat
 - Redis
 
-## 📡 API Endpoints
-
-### Authentication
-- `POST /api/auth/register/`: User registration
-- `POST /api/auth/login/`: User login
-- `POST /api/auth/google/`: Google OAuth
-
-### Properties
-- `GET /api/properties/`: List properties
-- `POST /api/properties/`: Create property
-- `GET /api/properties/<id>/`: Property details
-- `PUT /api/properties/<id>/`: Update property
-- `DELETE /api/properties/<id>/`: Delete property
-
-### Bookings
-- `POST /api/bookings/`: Create booking
-- `GET /api/bookings/`: List user bookings
-- `GET /api/bookings/<id>/`: Booking details
-
-### Payments
-- `POST /api/payments/create-intent/`: Create payment intent
-- `POST /api/payments/confirm/`: Confirm payment
 
 ## 🔄 Background Tasks
 
@@ -121,6 +99,4 @@ Celery handles:
 4. Push to branch
 5. Create Pull Request
 
-## 📄 License
 
-MIT License
