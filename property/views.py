@@ -584,6 +584,7 @@ class HostPropertyListView(generics.ListAPIView):
 #  =============================== DETAILED ROOM DETAILS IN USER SIDE =============================
   
 class PropertyDisplayView(APIView):
+    permission_classes = [permissions.AllowAny]
     def get(self, request, property_id):
         property_instance = get_object_or_404(Property, id=property_id)
     
@@ -631,6 +632,7 @@ logger = logging.getLogger(__name__)
 
 
 class NearbyPropertiesView(APIView):
+    permission_classes = [permissions.AllowAny]
     def get(self, request):
         try:
             try:
@@ -707,6 +709,7 @@ class NearbyPropertiesView(APIView):
 
 
 class PropertyCardViewUserSide(APIView):
+    permission_classes = [permissions.AllowAny]
     def post(self, request):
         try:
             # Get property IDs from request
