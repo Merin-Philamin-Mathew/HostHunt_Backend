@@ -15,7 +15,7 @@ class AdminApproveOrRejectProperty(APIView):
 
     VALID_STATUSES = ["in_review", "verified", "rejected"]
 
-    def patch(self, request, property_id, status):
+    def put(self, request, property_id, status):
         if status not in self.VALID_STATUSES:
             return Response({"error": "Invalid status."}, status=400)
 

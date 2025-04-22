@@ -1,11 +1,11 @@
 from django.shortcuts import render
-from rest_framework import status, permissions
+from rest_framework import status, permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import CustomOwner, CustomUser
-from .seriallizers import OwnerSerializer, UserSerializer, AdminUserSerializer
+from .models import CustomOwner, CustomUser, UserProfile, IdentityVerification 
+from .seriallizers import OwnerSerializer, UserSerializer, AdminUserSerializer, ProfilePicSerializer, UserProfileSerializer
 
 import random
 from django.conf import settings
@@ -14,7 +14,11 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .tasks import send_email_task
 
+from property.utils import Upload_to_s3, delete_file_from_s3,delete_file_from_s3_by_url
+from .seriallizers import IdentityVerificationSerializer
 
+from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
 # class CustomOwnerTokenView(TokenObtainPairView):
 #     def post(self, request, *args, **kwargs):
 #         owner = CustomOwner.objects.filter(email=request.data['email']).first()
@@ -156,6 +160,35 @@ class LoginView(APIView):
         #     print('user_type = owner')
 
         # Generate tokens
+          # Prepare additional details
+        profile_data = None
+        identity_verification_data = None
+
+        try:
+            profile = UserProfile.objects.get(user=user)
+            profile_data = {
+                'profile_pic': profile.profile_pic if profile.profile_pic else None,
+                'phone_number': profile.phone_number,
+                'date_of_birth': profile.date_of_birth,
+                'gender': profile.gender,
+                'about_me': profile.about_me,
+                'address': profile.address
+            }
+        except UserProfile.DoesNotExist:
+            profile_data = None
+
+        try:
+            identity_verification = user.identity_verification
+            identity_verification_data = {
+                'identity_card': identity_verification.identity_card,
+                'identity_proof_number': identity_verification.identity_proof_number,
+                'identity_card_front_img_url': identity_verification.identity_card_front_img_url,
+                'identity_card_back_img_url': identity_verification.identity_card_back_img_url,
+                'status': identity_verification.status
+            }
+        except IdentityVerification.DoesNotExist:
+            identity_verification_data = None
+
         refresh = RefreshToken.for_user(user)
         refresh['role'] = role
         refresh['email'] = str(user.email)
@@ -164,9 +197,11 @@ class LoginView(APIView):
 
         response = Response({
             'access': str(refresh.access_token),
+            'profile_pic': profile_data.get('profile_pic') if profile_data else None,
+            'profile': profile_data,
+            'identity_verification': identity_verification_data,
             "data": serializer.data
         }, status=status.HTTP_200_OK)
-        print(serializer.data,'fkldsjfldslfjdsl')
 
         response.set_cookie(
             key='refresh_token',
@@ -178,8 +213,7 @@ class LoginView(APIView):
         )
         return response
     
-from rest_framework_simplejwt.views import TokenRefreshView
-from rest_framework_simplejwt.tokens import RefreshToken
+
 
 class CustomTokenRefreshView(TokenRefreshView):
     print('custom refresh view')
@@ -235,6 +269,202 @@ class GoogleLoginView(APIView):
         print('content',content)
         return Response(content, status=status.HTTP_200_OK)
     
+    
+
+class UploadIdentityVerification(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        print('identity-verification',request.data)
+        data = request.data.copy()
+        
+        data['user'] = request.user.id
+
+        front_img = request.FILES.get('identity_card_front_img')
+        back_img = request.FILES.get('identity_card_back_img')
+
+        if not front_img or not back_img:
+            return Response(
+                {'error': 'Both front and back images are required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            s3_front_path = f"identity_verification/{request.user.id}/front/"
+            front_img_url = Upload_to_s3(front_img, s3_front_path)
+            data['identity_card_front_img_url'] = front_img_url
+
+            s3_back_path = f"identity_verification/{request.user.id}/back/"
+            back_img_url = Upload_to_s3(back_img, s3_back_path)
+            data['identity_card_back_img_url'] = back_img_url
+            data['status'] = 'in_review'
+
+        except Exception as e:
+            return Response(
+                {'error': f'Image upload failed: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        print('files uploaded in the s3 bucket')
+
+        serializer = IdentityVerificationSerializer(data=data)
+        print('serializer',serializer)
+        if serializer.is_valid():
+            try:
+                print('saving the identity verification')
+                identity_verification = serializer.save()
+                return Response({
+                    'message': 'Profile Picture submitted successfully',
+                    'data': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                print('===============\nError while saving identity verification:', {str(e)})
+                delete_file_from_s3(s3_front_path, front_img.name)
+                delete_file_from_s3(s3_back_path, back_img.name)
+                return Response(
+                    {'error': f'Submission failed: {str(e)}'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        print('===============\nError while saving identity verification:', serializer.errors)
+        delete_file_from_s3(s3_front_path, front_img.name)
+        delete_file_from_s3(s3_back_path, back_img.name)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 
 
+class UploadProfile(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        print('pro_pic',request.data)
+        data = request.data
+        data['user'] = request.user.id
+        pro_pic = request.FILES.get('pro_pic')
+
+        if not pro_pic :
+            return Response(
+                {'error': 'Profile picture is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            s3_front_path = f"pro_pic/{request.user.id}/"
+            pro_pic_url = Upload_to_s3(pro_pic, s3_front_path)
+            data['profile_pic'] = pro_pic_url
+
+
+        except Exception as e:
+            return Response(
+                {'error': f'Image upload failed: {str(e)}'}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        print('files uploaded in the s3 bucket')
+
+        serializer = ProfilePicSerializer(data=data)
+        print('serializer',serializer)
+        if serializer.is_valid():
+            try:
+                print('saving the identity verification')
+                propic = serializer.save()
+                return Response({
+                    'message': 'Profile Picture submitted successfully',
+                    'data': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                print('===============\nError while saving pro pic:', {str(e)})
+                delete_file_from_s3(s3_front_path, pro_pic.name)
+                return Response(
+                    {'error': f'Submission failed: {str(e)}'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        print('===============\nError while saving pro pic:', serializer.errors)
+        delete_file_from_s3(s3_front_path, pro_pic.name)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def put(self, request):
+        new_pro_pic = request.FILES.get('pro_pic')
+        
+        if not new_pro_pic:
+            return Response(
+                {'error': 'Profile picture is required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            user_profile = UserProfile.objects.get(user=request.user)
+            
+            old_pro_pic = user_profile.profile_pic
+            
+            s3_front_path = f"pro_pic/{request.user.id}/"
+            pro_pic_url = Upload_to_s3(new_pro_pic, s3_front_path)
+            
+            data = {
+                'user': request.user.id,
+                'profile_pic': pro_pic_url
+            }
+            
+            serializer = ProfilePicSerializer(user_profile, data=data, partial=True)
+            
+            if serializer.is_valid():
+                serializer.save()
+                
+                if old_pro_pic:
+                    try:
+                        delete_file_from_s3_by_url(old_pro_pic)
+                    except Exception as delete_error:
+                        print(f"Error deleting old profile picture: {delete_error}")
+                
+                return Response({
+                    'message': 'Profile Picture submitted successfully',
+                    'data': serializer.data  # Exactly same as POST response
+                }, status=status.HTTP_201_CREATED)
+            
+            delete_file_from_s3(s3_front_path, new_pro_pic.name)
+            
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        except UserProfile.DoesNotExist:
+            return Response(
+                {'error': 'User profile not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            try:
+                delete_file_from_s3(s3_front_path, new_pro_pic.name)
+            except:
+                pass
+            
+            return Response(
+                {'error': f'Submission failed: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+class UserProfileUpdateView(generics.UpdateAPIView):
+    serializer_class = UserProfileSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        # Retrieve or create profile for the current user
+        profile, created = UserProfile.objects.get_or_create(user=self.request.user)
+        return profile
+    
+
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def patch(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs, partial=True)
+
+    def post(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
 

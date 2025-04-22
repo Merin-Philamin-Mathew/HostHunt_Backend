@@ -70,7 +70,7 @@ def download_file_from_s3(s3_file_path):
 
 def delete_file_from_s3(s3_file_path,file_name):
     try:
-        s3_file_path+urllib.parse.quote(file_name)
+        s3_file_path+=urllib.parse.quote(file_name)
         s3.delete_object(Bucket=bucket_name, Key=s3_file_path)
         print(f"{s3_file_path} deleted successfully from {bucket_name}")
         return True

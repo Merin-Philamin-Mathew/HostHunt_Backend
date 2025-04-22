@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import CustomOwner, CustomUser
 from rest_framework.exceptions import ValidationError
+from .models import IdentityVerification,UserProfile
 
 
 class OwnerSerializer(serializers.ModelSerializer):
@@ -26,3 +27,53 @@ class AdminUserSerializer(serializers.ModelSerializer):
         if not self.instance.is_superuser:
             raise ValidationError("User is not an admin. Access denied.")
         return data
+    
+
+class IdentityVerificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IdentityVerification
+        fields = [
+            'user', 
+            'identity_card', 
+            'identity_proof_number', 
+            'identity_card_front_img_url', 
+            'identity_card_back_img_url',
+            'status',
+        ]
+        
+    def validate(self, data):
+        # Additional custom validation if needed
+        return data
+   
+class ProfilePicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['user', 'profile_pic']
+    
+    def validate(self, data):
+        # Additional custom validation if needed
+        return data
+
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = [
+            'phone_number', 
+            'date_of_birth', 
+            'gender', 
+            'about_me', 
+            'description_as_host', 
+            'address'
+        ]
+        extra_kwargs = {
+            'phone_number': {'required': True},
+            'address': {'required': True}
+        }
+
+
+
+
+
+

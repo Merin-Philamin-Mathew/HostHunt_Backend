@@ -68,10 +68,8 @@ INSTALLED_APPS = [
     'channels',
     'django_celery_beat',
     'django_extensions',
-
-
-
 ]
+
 ASGI_APPLICATION = 'project.asgi.application'
 
 
@@ -86,7 +84,6 @@ CHANNEL_LAYERS = {
         },
     },
 }
-
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
@@ -166,8 +163,6 @@ CORS_ORIGIN_ALLOW_ALL = False
 
 CORS_ORIGIN_WHITELIST = env.list('CORS_ORIGIN_WHITELIST', default=())
 
-
-
 CORS_ALLOW_HEADERS = [
     "accept",
     "accept-encoding",
@@ -179,6 +174,8 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
 ]
+# CORS_ALLOW_ALL_METHODS = True
+
 
 CORS_ALLOW_METHODS =  [
     "DELETE",
@@ -189,11 +186,8 @@ CORS_ALLOW_METHODS =  [
     "PUT",
 ]
 
-
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
-
-
 
 ROOT_URLCONF = 'project.urls'
 
@@ -214,17 +208,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'project.wsgi.application'
-
-
-# Database
-# https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-#     
-# }
 
 DATABASES = {
     'default': {
@@ -320,10 +303,15 @@ CELERY_TIMEZONE = 'UTC'  # Use your desired timezone
 CELERY_BEAT_SCHEDULE = {
     'send-rent-notifications': {
         'task': 'booking.tasks.send_rent_notifications',
-        'schedule': crontab(minute='*/1'),
+        'schedule': crontab(hour=9, minute=0),  # Runs daily at 9:00 AM
     },
-
 }
+# CELERY_BEAT_SCHEDULE = {
+#     'send-rent-notifications': {
+#         'task': 'booking.tasks.send_rent_notifications',
+#         'schedule': crontab(hour=23, minute=20),
+#     },
+# }
 
 # # Optional: Task result expiration (in seconds)
 # CELERY_TASK_RESULT_EXPIRES = 3600

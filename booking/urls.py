@@ -17,7 +17,6 @@ urlpatterns = [
     path('rent_payment_success/<str:pk>/', RentPaymentSuccess.as_view()),
     path('rents/paid-overdue/<str:booking_id>/', PaidAndOverdueRentsView.as_view(), name='paid-overdue-rents'),
 
-
 # =====================USER MANAGEMENT=====================================
 # get booking details by of a particular user
     path('userbookings/', UserBookingsView.as_view(), name='user-bookings-details'),

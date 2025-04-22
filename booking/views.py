@@ -64,11 +64,11 @@ class CreatePayment(APIView):
             line_items = [{
                             'price_data': {
                                 'currency': 'inr',
-                                'unit_amount': int(booking_amount * 100),  # Convert to cents for Stripe
+                                'unit_amount': int(booking_amount * 100), 
                                 'product_data': {
                                     'name': 'HostHunt',
-                                    'description': 'A booking for your stay at HostHunt',  # Provide a description
-                                    'images': [image_url],  # Optional, but useful for the product display
+                                    'description': 'A booking for your stay at HostHunt',  
+                                    'images': [image_url], 
                                 },
                             },
                             'quantity': 1,
@@ -114,7 +114,7 @@ class PaymentSuccess(APIView):
 
             owner_id = room.property.host.id
             message = f"A new booking has been made for your property: {room.property.property_name}."
-            print('going to sent notification to othe property ownere')
+            print('going to sent notification to other property owner')
             async_to_sync(send_user_notification)(user_id=owner_id, message=message, type='booking', senderId=booking.user.id)
 
             print('notification sent from the payment success view')
@@ -240,7 +240,7 @@ class HostBookingsView(APIView):
 class UpdateBookingStatusView(APIView):
     permission_classes = [permissions.IsAuthenticated]  # Ensure the user is authenticated
 
-    def patch(self, request, booking_id):
+    def put(self, request, booking_id):
         """
         Update the booking status for the given booking ID.
         """
@@ -385,7 +385,8 @@ class BookingReviewListPublicView(generics.ListAPIView):
         host_id = self.request.query_params.get('host_id')
         user_id = self.request.query_params.get('user_id')
         page_size = self.request.query_params.get('page_size')
-        print(property_id, host_id, user_id, page_size, self.request.user.id)     
+        req_user =  str(self.request.user.id)
+        print(property_id, host_id, page_size, req_user)     
         # Ensure page_size is provided
         if not page_size:
             raise ValidationError({
@@ -396,10 +397,10 @@ class BookingReviewListPublicView(generics.ListAPIView):
         if property_id:
             print('property_id', property_id)
             queryset = queryset.filter(property_id=property_id)
-        if host_id and host_id==self.request.user.id:
+        if host_id and host_id==req_user:
             print('host_id', host_id)
             queryset = queryset.filter(host_id=host_id)
-        if user_id and user_id==self.request.user.id: 
+        if user_id and user_id==req_user: 
             print('user_id', user_id)    
             queryset = queryset.filter(user_id=user_id)
 
@@ -410,7 +411,7 @@ class BookingReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return BookingReview.objects.filter(user=self.self.request.user)
+        return BookingReview.objects.filter(user=self.request.user)
    
 
 class HostReplyView(generics.UpdateAPIView):
@@ -447,12 +448,16 @@ class CreateRentView(APIView):
         print("Received data:", request.data)
 
         rent_details = request.data.get('rentDetails', {})
+        rent_id = rent_details.get('id')
+        rent_status = rent_details.get('status')
         booking_id = rent_details.get('booking_id')
         due_date = rent_details.get('due_date')
         amount = rent_details.get('amount')
         rent_method = rent_details.get('rent_method')
         notification_period = rent_details.get('notification_period', 3)  # Default to 3 if not provided
 
+        if rent_id:
+            rent_status = rent_status
         if not booking_id or not due_date or not amount or not rent_method:
             raise ValidationError({'error': 'booking_id, due_date, amount, and rent_method are required.'})
 
@@ -464,7 +469,7 @@ class CreateRentView(APIView):
         # Check for an existing rent with the same booking and due date
         rent, created = Rent.objects.update_or_create(
             booking=booking,
-            status='pending',
+            status=rent_status,
             defaults={
                 'due_date':due_date,
                 'amount': amount,
@@ -485,7 +490,7 @@ class GetUpcomingRentView(APIView):
     Retrieve the upcoming rent for a specific booking ID with the earliest pending due date.
     """
     def get(self, request, booking_id):
-        print('upcoming rent can be seem')
+        print('upcoming rent can be seen')
         # Validate booking
         try:
             booking = Bookings.objects.get(id=booking_id)
@@ -495,10 +500,17 @@ class GetUpcomingRentView(APIView):
         # Fetch the next rent with status 'pending' and the earliest due_date
         upcoming_rent = Rent.objects.filter(
             booking=booking,
-            status='pending',
-            due_date__gte=now().date()  # Ensure due_date is today or in the future
+            status__in=['pending', 'overdue'] 
+            # due_date__gte=now().date()  # Ensure due_date is today or in the future
         ).order_by('due_date').first()
 
+        today = now().date()
+        if upcoming_rent.due_date < today:
+            upcoming_rent.status = 'overdue'
+            upcoming_rent.save()
+        else:
+            upcoming_rent.status = 'pending'
+            upcoming_rent.save()
         if not upcoming_rent:
             return Response({"message": "No upcoming rent found for this booking."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -522,7 +534,6 @@ class PaidAndOverdueRentsView(APIView):
     def get(self, request, booking_id):
         try:
             rents = Rent.objects.filter(booking_id=booking_id, status__in=['paid', 'overdue'])
-            print(rents)
             if not rents.exists():
                 return Response({'message': 'No rents found for the specified booking ID.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -575,9 +586,9 @@ class Create_RentPayment(APIView):
 class RentPaymentSuccess(APIView):
     permission_classes = []  # Adjust permissions as needed
 
-    def get(self, request, pk):
+    def save_current_rent_n_create_upcoming(self,pk):
+        print('1')
         try:
-            print('1')
             rent = Rent.objects.get(id=pk)
 
             # Mark rent as paid and record payment timestamp
@@ -612,17 +623,28 @@ class RentPaymentSuccess(APIView):
                     'status': 'pending',  # Default status for the new rent
                 }
             )
-
             print('Created the upcoming rent')
-
-            frontend_url = f"{FRONTEND_BASE_URL}/account/my-stays/{rent.booking.id}/monthly-rent?paymentSuccess=true"
-            
-            print('9')
-            return HttpResponseRedirect(frontend_url)
-        
+            return rent.booking.id
         except Rent.DoesNotExist:
             print('11')
             return Response({'error': 'Rent not found'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    def get(self, request, pk):
+        try:
+            booking_id = self.save_current_rent_n_create_upcoming(pk)
+            frontend_url = f"{FRONTEND_BASE_URL}/account/my-stays/{booking_id}/monthly-rent?paymentSuccess=true"        
+            print('9',frontend_url)
+            return HttpResponseRedirect(frontend_url)
+        except Exception as e:
+            print('10', e)
+            return Response( status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def put(self, request, pk):
+        try:
+            booking_id = self.save_current_rent_n_create_upcoming(pk)
+            if booking_id:
+                return Response(status=status.HTTP_200_OK)
+            return Response(status=status.HTTP_200_OK)
         except Exception as e:
             print('10', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -737,6 +759,8 @@ class DashboardSummaryAPIView(APIView):
         rents_filter = {}
         properties_filter = {}
 
+        print(user.is_staff)
+
         if not user.is_staff:
             bookings_filter['host'] = user.id
             rents_filter['booking__host'] = user.id
@@ -840,11 +864,13 @@ class PaymentRecordView(APIView):
         
         # Filter rents based on parameters
         if user.is_staff:
-            print('/////////////user is superuser///////////////////')
-            rents = Rent.objects.all()
+            rents = Rent.objects.filter(status='paid')
+            bookings = BookingPayment.objects.filter(status='paid')
+            print(f'/////////////{user} is superuser prv///////////////////',rents,)
+
         else:
-            print('///////////user is not superuser////////////////////')
-            rents = Rent.objects.filter(booking__host=user.id)
+            rents = Rent.objects.filter(booking__host=user.id).filter(status='paid')
+            print(f'///////////{user} is not superuser prv////////////////////',rents,)
 
         if start_date and end_date:
             rents = rents.filter(payment_timestamp__range=[start_date, end_date])

@@ -1,3 +1,5 @@
+from django.conf import settings
+
 # rent/tasks.py
 from celery import shared_task
 from django.conf import settings
@@ -9,10 +11,15 @@ from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.core.mail import EmailMultiAlternatives
 
+
+
+FRONTEND_BASE_URL = settings.FRONTEND_BASE_URL
+BACKEND_BASE_URL = settings.BACKEND_BASE_URL
+
 @shared_task
 def send_rent_notifications():
-    print('=================================')
     current_date = timezone.now().date()
+    print('=================================',timezone.now(), '==============')
     upcoming_rents = Rent.objects.filter(
         due_date__range=[current_date, current_date + timezone.timedelta(days=3)],
         status='pending'
@@ -30,7 +37,7 @@ def send_rent_notifications():
 
             if rent.rent_method == 'rentThroughHostHunt':
                 print('rentThroughHostHunt')
-                email_context['payment_url'] = f"http://localhost:5173/account/my-stays/{rent.booking.id}/monthly-rent" 
+                email_context['payment_url'] = f"{FRONTEND_BASE_URL}/account/my-stays/{rent.booking.id}/monthly-rent" 
                 print('rentThroughHostHunt')
                 html_template = 'emails/rent_through_hosthunt.html'
             else:

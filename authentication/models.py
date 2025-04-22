@@ -103,17 +103,17 @@ class UserProfile(models.Model):
         ('other', 'Other'),
     )
 
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    profile_pic =  models.URLField(max_length=500, null=True, blank=True)
-    phone_number = models.CharField(max_length=15, blank=False) 
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='profile')
+    profile_pic =  models.URLField(null=True, blank=True)
+    phone_number = models.CharField(max_length=15,null=True, blank=False) 
     date_of_birth = models.DateField(blank=True, null=True)  
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, null=True, blank=True)  
     about_me = models.TextField(blank=True)  
     description_as_host = models.TextField(blank=True, null=True) 
-    address = models.TextField(blank=False) 
+    address = models.TextField(null=True,blank=False) 
 
     def __str__(self):
-        return f"{self.user.username}'s profile"
+        return f"{self.user.name}'s profile"
     
 class IdentityVerification(models.Model):
     IDENTITY_CARD_CHOICES = (
@@ -127,10 +127,17 @@ class IdentityVerification(models.Model):
     ('identity_card', 'Identity Card'),
 )
 
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE)
-    identity_card = models.CharField(max_length=50,null=True, blank=True) 
-    identity_proof_number = models.CharField( choices=IDENTITY_CARD_CHOICES, max_length=100, null=True, blank=True) 
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE,   related_name='identity_verification')
+    identity_card = models.CharField(choices=IDENTITY_CARD_CHOICES,max_length=50,null=True, blank=True) 
+    identity_proof_number = models.CharField(  max_length=100, null=True, blank=True) 
     identity_card_front_img_url =  models.URLField(max_length=500)
     identity_card_back_img_url =  models.URLField(max_length=500)
-
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_review', 'In Review'),
+        ('rejected', 'Rejected'),
+        ('verified', 'Verified'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
 

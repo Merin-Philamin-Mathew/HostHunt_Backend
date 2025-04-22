@@ -3,7 +3,6 @@ import urllib.parse
 from django.conf import settings
 from django.shortcuts import get_object_or_404
 
-
 from rest_framework.views import APIView
 from rest_framework import status, permissions, generics, viewsets
 from rest_framework.exceptions import NotFound
@@ -167,7 +166,7 @@ class PropertyDocumentUploadView(APIView):
 # STEP3 
 # policies and serivicies
 class PropertyPoliciesView(APIView):
-    def patch(self, request, property_id):
+    def put(self, request, property_id):
         try:
             property_instance = Property.objects.get(pk=property_id)
         except Property.DoesNotExist:

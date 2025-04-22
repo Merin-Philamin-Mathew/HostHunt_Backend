@@ -3,7 +3,6 @@ import uuid
 from django.db import models
 
 # Create your models here.
-
 class Bookings(models.Model):
     id = models.CharField(max_length=20, primary_key=True, unique=True, editable=False, blank=True)  # Redefine id as CharField
     user = models.ForeignKey('authentication.CustomUser', on_delete=models.CASCADE, related_name='bookings')
